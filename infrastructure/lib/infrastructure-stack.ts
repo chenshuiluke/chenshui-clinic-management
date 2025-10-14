@@ -8,13 +8,6 @@ export class InfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'InfrastructureQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
-    //
     const vpc = new Vpc(this, "VPC", {
       cidr: "10.0.0.0/23",
       maxAzs: 2,
@@ -36,7 +29,7 @@ export class InfrastructureStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // Might switch this to snapshot later on
       storageEncrypted: true,
       storageType: rds.StorageType.GP3,
-      deletionProtection: false,
+      deletionProtection: false, // I should toggle this to true later on
       autoMinorVersionUpgrade: true,
       enablePerformanceInsights: true,
       performanceInsightRetention: rds.PerformanceInsightRetention.DEFAULT,
