@@ -28,8 +28,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev && \
     npm cache clean --force
 
-# Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
+
+# Copy source TypeScript files needed by MikroORM CLI
+COPY --from=builder /app/src ./src
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

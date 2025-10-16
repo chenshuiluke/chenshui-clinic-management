@@ -1,5 +1,6 @@
 import { defineConfig } from "@mikro-orm/postgresql";
 import { TsMorphMetadataProvider } from "@mikro-orm/reflection";
+import { Migrator } from "@mikro-orm/migrations";
 
 const config = defineConfig({
   host: process.env.DB_HOST || "localhost",
@@ -11,19 +12,43 @@ const config = defineConfig({
   // SSL configuration for RDS
   driverOptions: {
     connection: {
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+      ssl:
+        process.env.NODE_ENV === "production"
+          ? { rejectUnauthorized: false }
+          : false,
     },
   },
 
-  // Use folder-based discovery
-  entities: ['./dist/entitites/**/*.js'],
-  entitiesTs: ['./src/entitites/**/*.ts'],
+  entities: ["./dist/entitites/**/*.js"],
+  entitiesTs: ["./src/entitites/**/*.ts"],
 
-  // Use TsMorphMetadataProvider to avoid needing emitDecoratorMetadata
   metadataProvider: TsMorphMetadataProvider,
 
   // Enable debug mode to log SQL queries
   debug: process.env.NODE_ENV !== "production",
+
+  extensions: [Migrator],
+
+  migrations: {
+    path: "./dist/migrations",
+    pathTs: "./src/migrations",
+    glob: "!(*.d).{js,ts}",
+    transactional: true,
+    disableForeignKeys: false,
+    allOrNothing: true,
+    dropTables: false,
+    safe: false,
+    snapshot: true,
+    emit: "ts",
+  },
+
+  seeder: {
+    path: "./dist/seeders",
+    pathTs: "./src/seeders",
+    glob: "!(*.d).{js,ts}",
+    emit: "ts",
+    defaultSeeder: "DatabaseSeeder",
+  },
 });
 
 export default config;

@@ -1,9 +1,8 @@
-import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
+import { Property, ManyToOne } from "@mikro-orm/core";
 import BaseEntity from "./base.entity";
 import Organization from "./organization.entity";
 
-@Entity()
-export default class OrganizationUser extends BaseEntity {
+export default abstract class OrganizationUser extends BaseEntity {
   @ManyToOne()
   organization!: Organization;
 

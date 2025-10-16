@@ -3,11 +3,16 @@ import { MikroORM } from "@mikro-orm/postgresql";
 import express, { Request, Response, NextFunction } from "express";
 import dotenv from "dotenv";
 import config from "./mikro-orm.config";
-
+import { runMigrations } from "./utils/runMigrations";
+import * as routes from "./routes";
 export async function bootstrap(port = 3000) {
   dotenv.config();
 
   const orm = await MikroORM.init(config);
+
+  // Run migrations before starting the server
+  await runMigrations(orm);
+
   const app = express();
 
   app.use(express.json());
@@ -31,7 +36,7 @@ export async function bootstrap(port = 3000) {
   app.get("/", (req: Request, res: Response) => {
     res.json({ message: "Server is running 🚀" });
   });
-
+  app.use("/organization", routes.organizationRouter);
   return new Promise<express.Application>((resolve) => {
     app.listen(port, () => {
       resolve(app);
