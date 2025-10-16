@@ -8,6 +8,13 @@ const config = defineConfig({
   password: process.env.DB_PASSWORD || "clinic_password",
   dbName: process.env.DB_NAME || "clinic_db",
 
+  // SSL configuration for RDS
+  driverOptions: {
+    connection: {
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    },
+  },
+
   // Use folder-based discovery
   entities: ['./dist/entitites/**/*.js'],
   entitiesTs: ['./src/entitites/**/*.ts'],
