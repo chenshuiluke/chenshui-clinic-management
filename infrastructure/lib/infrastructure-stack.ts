@@ -8,6 +8,9 @@ import * as ecs_patterns from "aws-cdk-lib/aws-ecs-patterns";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as route53 from "aws-cdk-lib/aws-route53";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as route53_targets from "aws-cdk-lib/aws-route53-targets";
 import path from "path";
 
 export class InfrastructureStack extends cdk.Stack {
@@ -22,6 +25,25 @@ export class InfrastructureStack extends cdk.Stack {
         { name: "Public", subnetType: ec2.SubnetType.PUBLIC },
         { name: "Private", subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       ],
+    });
+
+    // Import the hosted zone from the DNS stack using CloudFormation exports
+    const hostedZone = route53.HostedZone.fromHostedZoneAttributes(
+      this,
+      "HostedZone",
+      {
+        hostedZoneId: cdk.Fn.importValue("ClinicHostedZoneId"),
+        zoneName: cdk.Fn.importValue("ClinicHostedZoneName"),
+      },
+    );
+
+    // Create ACM certificate for all clinic subdomains
+    const certificate = new acm.Certificate(this, "Certificate", {
+      domainName: "clinic.lukecs.com",
+      subjectAlternativeNames: [
+        "*.clinic.lukecs.com", // Wildcard covers all subdomains
+      ],
+      validation: acm.CertificateValidation.fromDns(hostedZone),
     });
 
     const db = new rds.DatabaseInstance(this, "Database", {
@@ -62,45 +84,59 @@ export class InfrastructureStack extends cdk.Stack {
       vpc: vpc,
     });
 
-    const fargateService = new ecs_patterns.ApplicationLoadBalancedFargateService(
-      this,
-      "API Service",
-      {
-        cluster: cluster,
-        cpu: 256,
-        desiredCount: 1,
-        taskImageOptions: {
-          image: ecs.ContainerImage.fromDockerImageAsset(dockerImage),
-          containerPort: 3000, // Explicitly set the port
+    const fargateService =
+      new ecs_patterns.ApplicationLoadBalancedFargateService(
+        this,
+        "API Service",
+        {
+          cluster: cluster,
+          cpu: 256,
+          desiredCount: 1,
+          certificate: certificate,
+          listenerPort: 443,
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromDockerImageAsset(dockerImage),
+            containerPort: 3000, // The load balancer will handle ssl termination and then forward traffic to this port.
 
-          environment: {
-            NODE_ENV: "production",
-            PORT: "3000",
-            // Database connection info
-            DB_HOST: db.dbInstanceEndpointAddress,
-            DB_PORT: db.dbInstanceEndpointPort,
-            DB_NAME: "chenshui_clinic_management",
+            environment: {
+              NODE_ENV: "production",
+              PORT: "3000",
+              // Database connection info
+              DB_HOST: db.dbInstanceEndpointAddress,
+              DB_PORT: db.dbInstanceEndpointPort,
+              DB_NAME: "chenshui_clinic_management",
+            },
+
+            // Add secrets (database credentials)
+            secrets: {
+              DB_USER: ecs.Secret.fromSecretsManager(db.secret!, "username"),
+              DB_PASSWORD: ecs.Secret.fromSecretsManager(
+                db.secret!,
+                "password",
+              ),
+            },
+
+            logDriver: ecs.LogDrivers.awsLogs({
+              streamPrefix: "api",
+              logRetention: logs.RetentionDays.ONE_WEEK,
+            }),
           },
-
-          // Add secrets (database credentials)
-          secrets: {
-            DB_USER: ecs.Secret.fromSecretsManager(db.secret!, "username"),
-            DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, "password"),
-          },
-
-          logDriver: ecs.LogDrivers.awsLogs({
-            streamPrefix: "api",
-            logRetention: logs.RetentionDays.ONE_WEEK,
+          taskSubnets: vpc.selectSubnets({
+            subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
           }),
+          memoryLimitMiB: 512,
+          publicLoadBalancer: true,
         },
-        taskSubnets: vpc.selectSubnets({
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        }),
-        memoryLimitMiB: 512,
-        publicLoadBalancer: true,
-      },
-    );
+      );
 
+    // Add api.clinic.lukecs.com A record for the loadbalancer
+    new route53.ARecord(this, "ApiARecord", {
+      zone: hostedZone,
+      recordName: "api", // Just the subdomain part
+      target: route53.RecordTarget.fromAlias(
+        new route53_targets.LoadBalancerTarget(fargateService.loadBalancer),
+      ),
+    });
     // Allow Fargate service to connect to RDS
     db.connections.allowFrom(
       fargateService.service,
