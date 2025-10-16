@@ -28,7 +28,6 @@ export async function bootstrap(port = 3000) {
     res.status(200).send("OK");
   });
 
-  // Example route
   app.get("/", (req: Request, res: Response) => {
     res.json({ message: "Server is running 🚀" });
   });

@@ -62,7 +62,7 @@ export class InfrastructureStack extends cdk.Stack {
       vpc: vpc,
     });
 
-    new ecs_patterns.ApplicationLoadBalancedFargateService(
+    const fargateService = new ecs_patterns.ApplicationLoadBalancedFargateService(
       this,
       "API Service",
       {
@@ -99,6 +99,13 @@ export class InfrastructureStack extends cdk.Stack {
         memoryLimitMiB: 512,
         publicLoadBalancer: true,
       },
+    );
+
+    // Allow Fargate service to connect to RDS
+    db.connections.allowFrom(
+      fargateService.service,
+      ec2.Port.tcp(5432),
+      "Allow Fargate tasks to connect to RDS",
     );
   }
 }
