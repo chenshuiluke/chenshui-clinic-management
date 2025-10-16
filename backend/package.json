@@ -25,6 +25,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.911.0",
     "@mikro-orm/cli": "^6.5.8",
     "@mikro-orm/core": "^6.5.8",
     "@mikro-orm/migrations": "^6.5.8",
@@ -35,7 +36,8 @@
     "express": "^5.1.0",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
