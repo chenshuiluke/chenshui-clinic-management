@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # PostgreSQL Database
@@ -37,15 +37,14 @@ services:
       - "3000:3000"
     volumes:
       - ./backend/src:/app/src:ro
-      - ./backend/package.json:/app/package.json:ro
-      - ./backend/package-lock.json:/app/package-lock.json:ro
-      - ./backend/tsconfig.json:/app/tsconfig.json:ro
+      - ./backend/package.json:/app/package.json
+      - ./backend/package-lock.json:/app/package-lock.json
+      - ./backend/tsconfig.json:/app/tsconfig.json
       - backend_node_modules:/app/node_modules
     depends_on:
       db:
         condition: service_healthy
-    command: npm run dev
-    restart: unless-stopped
+    command: sh -c "npm install && npm run dev"
 
   # Frontend Service
   frontend:
