@@ -10,7 +10,7 @@ echo "Waiting for services to be healthy..."
 sleep 5
 
 echo "Running tests..."
-docker compose -f docker-compose.yaml -f docker-compose.test.yaml up --abort-on-container-exit backend-test
+docker compose -f docker-compose.yaml -f docker-compose.test.yaml run --rm backend-test
 
 # Capture exit code
 EXIT_CODE=$?
