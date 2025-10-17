@@ -1,16 +1,17 @@
 import { Router } from "express";
 import OrganizationController from "../controllers/organization";
 import { validateRequest } from "../middleware/validator";
-import { createOrganizationResponseSchema } from "../validators/organization";
+import { createOrganizationSchema } from "../validators/organization";
 
 const router = Router();
 const organizationController = new OrganizationController();
 
-router.route("/").get(organizationController.getAllOrganizations);
 router
   .route("/")
-  .post(
-    validateRequest(createOrganizationResponseSchema),
-    organizationController.create,
+  .get((req, res) => organizationController.getAllOrganizations(req, res));
+router
+  .route("/")
+  .post(validateRequest(createOrganizationSchema), (req, res) =>
+    organizationController.create(req, res),
   );
 export default router;

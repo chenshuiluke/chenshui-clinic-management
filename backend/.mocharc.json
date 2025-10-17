@@ -1,0 +1,6 @@
+{
+  "require": ["tsx/cjs"],
+  "spec": ["src/__tests__/setup.ts", "src/__tests__/**/*.test.ts"],
+  "timeout": 10000,
+  "color": true
+}
