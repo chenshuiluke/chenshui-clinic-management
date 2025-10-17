@@ -1,19 +1,19 @@
 import { MikroORM } from "@mikro-orm/postgresql";
-import { Express } from "express";
+import express from "express";
 import config from "../mikro-orm.config";
 import { createApp } from "../app";
 import Patient from "../entitites/patient.entity";
 import Organization from "../entitites/organization.entity";
 
 let cachedOrm: MikroORM | null = null;
-let cachedApp: Express | null = null;
+let cachedApp: express.Application | null = null;
 
 /**
  * Initialize test environment and create the api without starting the server
  */
 export async function setupTestEnvironment(): Promise<{
   orm: MikroORM;
-  app: Express;
+  app: express.Application;
 }> {
   if (!cachedOrm) {
     cachedOrm = await MikroORM.init({
@@ -52,7 +52,7 @@ export function getOrm(): MikroORM {
 /**
  * Get the cached Express app
  */
-export function getApp(): Express {
+export function getApp(): express.Application {
   if (!cachedApp) {
     throw new Error(
       "Test environment not initialized. Call setupTestEnvironment() first.",
