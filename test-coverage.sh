@@ -31,6 +31,9 @@ docker compose -f docker-compose.yaml -f docker-compose.test.yaml run --rm \
       --exclude='src/**/*.test.ts' \
       --exclude='src/migrations/**' \
       --exclude='src/seeders/**' \
+      --exclude='src/mikro-orm.config.ts' \
+      --exclude='src/utils/runMigrations.ts' \
+      --exclude='src/utils/runSeeders.ts' \
       --exclude='src/**/*.d.ts' \
       --extension='.ts' \
       npm test
