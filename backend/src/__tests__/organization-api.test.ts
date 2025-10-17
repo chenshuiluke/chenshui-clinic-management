@@ -33,10 +33,10 @@ describe("Organization API", () => {
       expect(response.body).to.have.lengthOf(3, `Expected 3 organizations but got ${response.body.length}. Organizations: ${JSON.stringify(response.body)}`);
 
       response.body.forEach((org: any, index: number) => {
-        expect(org.id).to.exist(`Organization at index ${index} missing id field. Org: ${JSON.stringify(org)}`);
-        expect(org.name).to.exist(`Organization at index ${index} missing name field. Org: ${JSON.stringify(org)}`);
-        expect(org.createdAt).to.exist(`Organization at index ${index} missing createdAt field. Org: ${JSON.stringify(org)}`);
-        expect(org.updatedAt).to.exist(`Organization at index ${index} missing updatedAt field. Org: ${JSON.stringify(org)}`);
+        expect(org.id, `Organization at index ${index} missing id field. Org: ${JSON.stringify(org)}`).to.be.ok;
+        expect(org.name, `Organization at index ${index} missing name field. Org: ${JSON.stringify(org)}`).to.be.ok;
+        expect(org.createdAt, `Organization at index ${index} missing createdAt field. Org: ${JSON.stringify(org)}`).to.be.ok;
+        expect(org.updatedAt, `Organization at index ${index} missing updatedAt field. Org: ${JSON.stringify(org)}`).to.be.ok;
         expect(org.id).to.be.a("number", `Organization at index ${index} has non-number id: ${org.id} (type: ${typeof org.id})`);
         expect(org.name).to.be.a("string", `Organization at index ${index} has non-string name: ${org.name} (type: ${typeof org.name})`);
       });
@@ -65,10 +65,10 @@ describe("Organization API", () => {
         .set("Content-Type", "application/json");
 
       expect(response.status).to.equal(201, `Expected status 201 but got ${response.status}. Request: ${JSON.stringify(newOrg)}, Response: ${JSON.stringify(response.body)}`);
-      expect(response.body.id).to.exist(`Created organization missing id field. Response: ${JSON.stringify(response.body)}`);
+      expect(response.body.id, `Created organization missing id field. Response: ${JSON.stringify(response.body)}`).to.be.ok;
       expect(response.body.name).to.equal(newOrg.name, `Expected name "${newOrg.name}" but got "${response.body.name}". Response: ${JSON.stringify(response.body)}`);
-      expect(response.body.createdAt).to.exist(`Created organization missing createdAt field. Response: ${JSON.stringify(response.body)}`);
-      expect(response.body.updatedAt).to.exist(`Created organization missing updatedAt field. Response: ${JSON.stringify(response.body)}`);
+      expect(response.body.createdAt, `Created organization missing createdAt field. Response: ${JSON.stringify(response.body)}`).to.be.ok;
+      expect(response.body.updatedAt, `Created organization missing updatedAt field. Response: ${JSON.stringify(response.body)}`).to.be.ok;
     });
 
     it("should persist organization to database", async () => {
@@ -81,7 +81,7 @@ describe("Organization API", () => {
       const em = orm.em.fork();
       const savedOrg = await em.findOne(Organization, { id: response.body.id });
 
-      expect(savedOrg).to.exist(`Organization not found in database with id ${response.body.id}. Response: ${JSON.stringify(response.body)}`);
+      expect(savedOrg, `Organization not found in database with id ${response.body.id}. Response: ${JSON.stringify(response.body)}`).to.be.ok;
       expect(savedOrg!.name).to.equal(newOrg.name, `Expected saved name "${newOrg.name}" but got "${savedOrg!.name}". Saved org: ${JSON.stringify(savedOrg)}`);
     });
 
@@ -98,7 +98,7 @@ describe("Organization API", () => {
           400,
           `Expected status 400 for invalid data ${JSON.stringify(invalidData)} but got ${response.status}. Response: ${JSON.stringify(response.body)}`,
         );
-        expect(response.body.error).to.exist(`Expected error field in response for invalid data ${JSON.stringify(invalidData)}. Response: ${JSON.stringify(response.body)}`);
+        expect(response.body.error, `Expected error field in response for invalid data ${JSON.stringify(invalidData)}. Response: ${JSON.stringify(response.body)}`).to.be.ok;
       }
     });
 
@@ -121,7 +121,7 @@ describe("Organization API", () => {
         .post("/organization")
         .send({ name: "Auto ID Clinic" });
 
-      expect(response.body.id).to.exist(`Created organization missing id field. Response: ${JSON.stringify(response.body)}`);
+      expect(response.body.id, `Created organization missing id field. Response: ${JSON.stringify(response.body)}`).to.be.ok;
       expect(response.body.id).to.be.a("number", `Expected id to be a number but got ${typeof response.body.id}. Id value: ${response.body.id}`);
       expect(response.body.id).to.be.greaterThan(0, `Expected id to be greater than 0 but got ${response.body.id}`);
     });

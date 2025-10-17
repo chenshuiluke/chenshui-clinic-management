@@ -14,7 +14,8 @@
     "migration:down": "mikro-orm migration:down",
     "migration:list": "mikro-orm migration:list",
     "migration:pending": "mikro-orm migration:pending",
-    "seeder:run": "mikro-orm seeder:run"
+    "seeder:run": "mikro-orm seeder:run",
+    "test:coverage": "nyc npm test"
   },
   "mikro-orm": {
     "useTsNode": true,
@@ -53,6 +54,32 @@
     "supertest": "^7.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "nyc": "^15.1.0",
+    "@istanbuljs/nyc-config-typescript": "^1.0.2"
+  },
+  "nyc": {
+    "extends": "@istanbuljs/nyc-config-typescript",
+    "all": true,
+    "check-coverage": true,
+    "reporter": [
+      "text",
+      "lcov",
+      "json-summary"
+    ],
+    "include": [
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "src/__tests__/**",
+      "src/**/*.test.ts",
+      "src/migrations/**",
+      "src/seeders/**",
+      "src/**/*.d.ts"
+    ],
+    "branches": 70,
+    "lines": 80,
+    "functions": 75,
+    "statements": 80
   }
 }

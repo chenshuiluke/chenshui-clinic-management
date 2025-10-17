@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Make scripts executable
+        run: |
+          chmod +x test.sh
+          chmod +x test-coverage.sh
+
+      - name: Run tests
+        run: ./test.sh
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker compose -f docker-compose.yaml -f docker-compose.test.yaml down -v || true
+
+  test-with-coverage:
+    runs-on: ubuntu-latest
+    # Run coverage only on main branch to avoid rate limits
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Make scripts executable
+        run: |
+          [ -f test-coverage.sh ] && chmod +x test-coverage.sh || echo "test-coverage.sh not found"
+
+      - name: Run tests with coverage
+        run: ./test-coverage.sh
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./backend/coverage
+          files: ./backend/coverage/lcov.info
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker compose -f docker-compose.yaml -f docker-compose.test.yaml down -v || true
