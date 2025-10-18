@@ -1,7 +1,7 @@
 import { describe, it } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
-import Organization from "../entitites/organization.entity";
+import Organization from "../entities/central/organization.entity";
 import { getApp, getOrm, createTestOrganization } from "./fixtures";
 
 describe("Organization API", () => {

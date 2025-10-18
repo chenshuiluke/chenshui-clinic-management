@@ -19,8 +19,8 @@ const config = defineConfig({
     },
   },
 
-  entities: ["./dist/entitites/**/*.js"],
-  entitiesTs: ["./src/entitites/**/*.ts"],
+  entities: ["./dist/entities/**/*.js"],
+  entitiesTs: ["./src/entities/**/*.ts"],
 
   metadataProvider: TsMorphMetadataProvider,
 

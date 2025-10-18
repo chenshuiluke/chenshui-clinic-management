@@ -1,5 +1,5 @@
 import { RequestContext } from "@mikro-orm/core";
-import Organization from "../entitites/organization.entity";
+import Organization from "../entities/central/organization.entity";
 import { z } from "zod";
 
 export const createOrganizationSchema = z.object({

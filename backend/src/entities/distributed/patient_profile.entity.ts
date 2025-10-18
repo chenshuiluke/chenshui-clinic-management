@@ -1,8 +1,8 @@
 import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
-import OrganizationUser from "./organization_user.entity";
+import BaseEntity from "../base.entity";
 
 @Entity()
-export default class Patient extends OrganizationUser {
+export default class PatientProfile extends BaseEntity {
   // @Property()
   // address!: string;
   // @Property()

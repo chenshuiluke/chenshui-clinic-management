@@ -1,7 +1,7 @@
 import { EntityManager } from "@mikro-orm/core";
 import { Seeder } from "@mikro-orm/seeder";
-import Organization from "../entitites/organization.entity";
-import Patient from "../entitites/patient.entity";
+import Organization from "../entities/central/organization.entity";
+import Patient from "../entities/distributed/patient_profile.entity";
 
 export class DatabaseSeeder extends Seeder {
   async run(em: EntityManager): Promise<void> {
@@ -16,16 +16,7 @@ export class DatabaseSeeder extends Seeder {
     // Create organization
     const org = new Organization();
     org.name = "Chen Shui Clinic";
-
-    // Create patient
-    const patient = new Patient();
-    patient.organization = org;
-    patient.firstName = "Shenseea";
-    patient.lastName = "";
-    patient.email = "shenseea@example.com";
-    patient.phone = "555-0123";
-
-    await em.persistAndFlush([org, patient]);
+    await em.persistAndFlush([org]);
 
     console.log("Database seeded successfully!");
   }

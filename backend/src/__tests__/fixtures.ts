@@ -2,8 +2,7 @@ import { MikroORM } from "@mikro-orm/postgresql";
 import express from "express";
 import config from "../mikro-orm.config";
 import { createApp } from "../app";
-import Patient from "../entitites/patient.entity";
-import Organization from "../entitites/organization.entity";
+import Organization from "../entities/central/organization.entity";
 
 let cachedOrm: MikroORM | null = null;
 let cachedApp: express.Application | null = null;
@@ -68,7 +67,7 @@ export async function clearDatabase(orm: MikroORM): Promise<void> {
   const em = orm.em.fork();
 
   // Delete in order to respect foreign key constraints
-  await em.nativeDelete(Patient, {});
+  // await em.nativeDelete(Patient, {});
   await em.nativeDelete(Organization, {});
 }
 
@@ -88,29 +87,29 @@ export async function createTestOrganization(
   return org;
 }
 
-/**
- * Create test patient
- */
-export async function createTestPatient(
-  orm: MikroORM,
-  organizationId: number,
-  data: Partial<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  }> = {},
-): Promise<Patient> {
-  const em = orm.em.fork();
-  const org = await em.findOneOrFail(Organization, { id: organizationId });
-  const patient = em.create(Patient, {
-    organization: org,
-    firstName: data.firstName || "John",
-    lastName: data.lastName || "Doe",
-    email: data.email || "john.doe@example.com",
-    phone: data.phone || "555-0100",
-    ...data,
-  });
-  await em.persistAndFlush(patient);
-  return patient;
-}
+// /**
+//  * Create test patient
+//  */
+// export async function createTestPatient(
+//   orm: MikroORM,
+//   organizationId: number,
+//   data: Partial<{
+//     firstName: string;
+//     lastName: string;
+//     email: string;
+//     phone: string;
+//   }> = {},
+// ): Promise<Patient> {
+//   const em = orm.em.fork();
+//   const org = await em.findOneOrFail(Organization, { id: organizationId });
+//   const patient = em.create(Patient, {
+//     organization: org,
+//     firstName: data.firstName || "John",
+//     lastName: data.lastName || "Doe",
+//     email: data.email || "john.doe@example.com",
+//     phone: data.phone || "555-0100",
+//     ...data,
+//   });
+//   await em.persistAndFlush(patient);
+//   return patient;
+// }

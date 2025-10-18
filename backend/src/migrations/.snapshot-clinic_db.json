@@ -21,7 +21,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -31,7 +31,107 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "appointment",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "appointment_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {},
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "unsigned": false,
+          "autoincrement": true,
+          "primary": true,
           "nullable": false,
+          "mappedType": "integer"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "doctor_profile",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "doctor_profile_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {},
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "unsigned": false,
+          "autoincrement": true,
+          "primary": true,
+          "nullable": false,
+          "mappedType": "integer"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -91,7 +191,7 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -101,7 +201,57 @@
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "patient_profile",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "patient_profile_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {},
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "unsigned": false,
+          "autoincrement": true,
+          "primary": true,
           "nullable": false,
+          "mappedType": "integer"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
           "length": 6,
           "mappedType": "datetime"
         },
@@ -113,6 +263,26 @@
           "primary": false,
           "nullable": false,
           "mappedType": "integer"
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 255,
+          "mappedType": "string"
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 255,
+          "mappedType": "string"
         },
         "first_name": {
           "name": "first_name",
@@ -134,32 +304,50 @@
           "length": 255,
           "mappedType": "string"
         },
-        "email": {
-          "name": "email",
-          "type": "varchar(255)",
+        "doctor_profile_id": {
+          "name": "doctor_profile_id",
+          "type": "int",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
-          "length": 255,
-          "mappedType": "string"
+          "nullable": true,
+          "mappedType": "integer"
         },
-        "phone": {
-          "name": "phone",
-          "type": "varchar(255)",
+        "patient_profile_id": {
+          "name": "patient_profile_id",
+          "type": "int",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
-          "length": 255,
-          "mappedType": "string"
+          "nullable": true,
+          "mappedType": "integer"
         }
       },
-      "name": "patient",
+      "name": "organization_user",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "patient_pkey",
+          "columnNames": [
+            "doctor_profile_id"
+          ],
+          "composite": false,
+          "keyName": "organization_user_doctor_profile_id_unique",
+          "constraint": true,
+          "primary": false,
+          "unique": true
+        },
+        {
+          "columnNames": [
+            "patient_profile_id"
+          ],
+          "composite": false,
+          "keyName": "organization_user_patient_profile_id_unique",
+          "constraint": true,
+          "primary": false,
+          "unique": true
+        },
+        {
+          "keyName": "organization_user_pkey",
           "columnNames": [
             "id"
           ],
@@ -171,16 +359,42 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "patient_organization_id_foreign": {
-          "constraintName": "patient_organization_id_foreign",
+        "organization_user_organization_id_foreign": {
+          "constraintName": "organization_user_organization_id_foreign",
           "columnNames": [
             "organization_id"
           ],
-          "localTableName": "public.patient",
+          "localTableName": "public.organization_user",
           "referencedColumnNames": [
             "id"
           ],
           "referencedTableName": "public.organization",
+          "updateRule": "cascade"
+        },
+        "organization_user_doctor_profile_id_foreign": {
+          "constraintName": "organization_user_doctor_profile_id_foreign",
+          "columnNames": [
+            "doctor_profile_id"
+          ],
+          "localTableName": "public.organization_user",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.doctor_profile",
+          "deleteRule": "set null",
+          "updateRule": "cascade"
+        },
+        "organization_user_patient_profile_id_foreign": {
+          "constraintName": "organization_user_patient_profile_id_foreign",
+          "columnNames": [
+            "patient_profile_id"
+          ],
+          "localTableName": "public.organization_user",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.patient_profile",
+          "deleteRule": "set null",
           "updateRule": "cascade"
         }
       },
