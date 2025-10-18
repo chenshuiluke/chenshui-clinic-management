@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import config from "./mikro-orm.config";
 import { runMigrations } from "./utils/runMigrations";
 import OrganizationRouter from "./routes/organization";
+import AuthRouter from "./routes/auth";
+import { authenticate } from "./middleware/auth.middleware";
 
 /**
  * Create and configure Express app without starting the server
@@ -28,7 +30,11 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
     res.json({ message: "Server is running" });
   });
 
-  app.use("/organization", OrganizationRouter);
+  // Auth routes (public)
+  app.use("/auth", AuthRouter);
+
+  // Protected routes
+  app.use("/organization", authenticate, OrganizationRouter);
 
   return app;
 }

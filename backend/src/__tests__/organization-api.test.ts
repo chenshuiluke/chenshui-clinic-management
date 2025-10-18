@@ -1,34 +1,56 @@
-import { describe, it } from "mocha";
+import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
 import Organization from "../entities/central/organization.entity";
-import { getApp, getOrm, createTestOrganization } from "./fixtures";
+import {
+  getApp,
+  getOrm,
+  createTestOrganization,
+  createTestUser,
+} from "./fixtures";
+import { jwtService } from "../services/jwt.service";
 
 describe("Organization API", () => {
   let app: ReturnType<typeof getApp>;
   let orm: ReturnType<typeof getOrm>;
+  let authToken: string;
 
-  before(() => {
+  beforeEach(async () => {
     app = getApp();
     orm = getOrm();
+
+    // Create a test user and generate auth token for protected routes
+    const user = await createTestUser(orm, {
+      email: "admin@test.com",
+      name: "Test Admin",
+      password: "password123",
+    });
+
+    authToken = jwtService.generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    });
   });
 
   describe("GET /organization", () => {
-    it("should return an empty array when no organizations exist", async () => {
-      const response = await request(app).get("/organization");
+    it("should require authentication", async () => {
+      const response = await request(app).get("/organization").expect(401);
 
-      expect(response.status).to.equal(
-        200,
-        `Expected status 200 but got ${response.status}. Response body: ${JSON.stringify(response.body)}`,
+      expect(response.body).to.have.property(
+        "error",
+        "Authentication token required",
       );
-      expect(response.body).to.be.an(
-        "array",
-        `Expected response body to be an array but got ${typeof response.body}. Body: ${JSON.stringify(response.body)}`,
-      );
-      expect(response.body).to.have.lengthOf(
-        0,
-        `Expected empty array but got ${response.body.length} organizations: ${JSON.stringify(response.body)}`,
-      );
+    });
+
+    it("should return an empty array when no organizations exist", async () => {
+      const response = await request(app)
+        .get("/organization")
+        .set("Authorization", `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body).to.be.an("array");
+      expect(response.body).to.have.lengthOf(0);
     });
 
     it("should return all organizations with correct structure", async () => {
@@ -36,42 +58,18 @@ describe("Organization API", () => {
       await createTestOrganization(orm, { name: "Clinic B" });
       await createTestOrganization(orm, { name: "Clinic C" });
 
-      const response = await request(app).get("/organization");
+      const response = await request(app)
+        .get("/organization")
+        .set("Authorization", `Bearer ${authToken}`)
+        .expect(200);
 
-      expect(response.status).to.equal(
-        200,
-        `Expected status 200 but got ${response.status}. Response body: ${JSON.stringify(response.body)}`,
-      );
-      expect(response.body).to.have.lengthOf(
-        3,
-        `Expected 3 organizations but got ${response.body.length}. Organizations: ${JSON.stringify(response.body)}`,
-      );
+      expect(response.body).to.have.lengthOf(3);
 
       response.body.forEach((org: any, index: number) => {
-        expect(
-          org.id,
-          `Organization at index ${index} missing id field. Org: ${JSON.stringify(org)}`,
-        ).to.be.ok;
-        expect(
-          org.name,
-          `Organization at index ${index} missing name field. Org: ${JSON.stringify(org)}`,
-        ).to.be.ok;
-        expect(
-          org.createdAt,
-          `Organization at index ${index} missing createdAt field. Org: ${JSON.stringify(org)}`,
-        ).to.be.ok;
-        expect(
-          org.updatedAt,
-          `Organization at index ${index} missing updatedAt field. Org: ${JSON.stringify(org)}`,
-        ).to.be.ok;
-        expect(org.id).to.be.a(
-          "number",
-          `Organization at index ${index} has non-number id: ${org.id} (type: ${typeof org.id})`,
-        );
-        expect(org.name).to.be.a(
-          "string",
-          `Organization at index ${index} has non-string name: ${org.name} (type: ${typeof org.name})`,
-        );
+        expect(org).to.have.property("id").that.is.a("number");
+        expect(org).to.have.property("name").that.is.a("string");
+        expect(org).to.have.property("createdAt");
+        expect(org).to.have.property("updatedAt");
       });
     });
 
@@ -79,17 +77,43 @@ describe("Organization API", () => {
       await createTestOrganization(orm, { name: "Alpha Clinic" });
       await createTestOrganization(orm, { name: "Beta Clinic" });
 
-      const response1 = await request(app).get("/organization");
-      const response2 = await request(app).get("/organization");
+      const response1 = await request(app)
+        .get("/organization")
+        .set("Authorization", `Bearer ${authToken}`);
 
-      expect(response1.body).to.deep.equal(
-        response2.body,
-        `Organizations returned in different order. First call: ${JSON.stringify(response1.body)}, Second call: ${JSON.stringify(response2.body)}`,
+      const response2 = await request(app)
+        .get("/organization")
+        .set("Authorization", `Bearer ${authToken}`);
+
+      expect(response1.body).to.deep.equal(response2.body);
+    });
+
+    it("should reject invalid token", async () => {
+      const response = await request(app)
+        .get("/organization")
+        .set("Authorization", "Bearer invalid-token")
+        .expect(401);
+
+      expect(response.body).to.have.property(
+        "error",
+        "Invalid or expired token",
       );
     });
   });
 
   describe("POST /organization", () => {
+    it("should require authentication", async () => {
+      const response = await request(app)
+        .post("/organization")
+        .send({ name: "New Clinic" })
+        .expect(401);
+
+      expect(response.body).to.have.property(
+        "error",
+        "Authentication token required",
+      );
+    });
+
     it("should create organization with valid data", async () => {
       const newOrg = {
         name: "New Medical Center",
@@ -97,29 +121,15 @@ describe("Organization API", () => {
 
       const response = await request(app)
         .post("/organization")
+        .set("Authorization", `Bearer ${authToken}`)
         .send(newOrg)
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .expect(201);
 
-      expect(response.status).to.equal(
-        201,
-        `Expected status 201 but got ${response.status}. Request: ${JSON.stringify(newOrg)}, Response: ${JSON.stringify(response.body)}`,
-      );
-      expect(
-        response.body.id,
-        `Created organization missing id field. Response: ${JSON.stringify(response.body)}`,
-      ).to.be.ok;
-      expect(response.body.name).to.equal(
-        newOrg.name,
-        `Expected name "${newOrg.name}" but got "${response.body.name}". Response: ${JSON.stringify(response.body)}`,
-      );
-      expect(
-        response.body.createdAt,
-        `Created organization missing createdAt field. Response: ${JSON.stringify(response.body)}`,
-      ).to.be.ok;
-      expect(
-        response.body.updatedAt,
-        `Created organization missing updatedAt field. Response: ${JSON.stringify(response.body)}`,
-      ).to.be.ok;
+      expect(response.body).to.have.property("id").that.is.a("number");
+      expect(response.body).to.have.property("name", newOrg.name);
+      expect(response.body).to.have.property("createdAt");
+      expect(response.body).to.have.property("updatedAt");
     });
 
     it("should persist organization to database", async () => {
@@ -127,19 +137,17 @@ describe("Organization API", () => {
         name: "Persistent Clinic",
       };
 
-      const response = await request(app).post("/organization").send(newOrg);
+      const response = await request(app)
+        .post("/organization")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send(newOrg)
+        .expect(201);
 
       const em = orm.em.fork();
       const savedOrg = await em.findOne(Organization, { id: response.body.id });
 
-      expect(
-        savedOrg,
-        `Organization not found in database with id ${response.body.id}. Response: ${JSON.stringify(response.body)}`,
-      ).to.be.ok;
-      expect(savedOrg!.name).to.equal(
-        newOrg.name,
-        `Expected saved name "${newOrg.name}" but got "${savedOrg!.name}". Saved org: ${JSON.stringify(savedOrg)}`,
-      );
+      expect(savedOrg).to.exist;
+      expect(savedOrg!.name).to.equal(newOrg.name);
     });
 
     it("should reject invalid name values", async () => {
@@ -148,17 +156,12 @@ describe("Organization API", () => {
       for (const invalidData of invalidNames) {
         const response = await request(app)
           .post("/organization")
+          .set("Authorization", `Bearer ${authToken}`)
           .send(invalidData)
-          .set("Content-Type", "application/json");
+          .set("Content-Type", "application/json")
+          .expect(400);
 
-        expect(response.status).to.equal(
-          400,
-          `Expected status 400 for invalid data ${JSON.stringify(invalidData)} but got ${response.status}. Response: ${JSON.stringify(response.body)}`,
-        );
-        expect(
-          response.body.error,
-          `Expected error field in response for invalid data ${JSON.stringify(invalidData)}. Response: ${JSON.stringify(response.body)}`,
-        ).to.be.ok;
+        expect(response.body).to.have.property("error");
       }
     });
 
@@ -169,12 +172,10 @@ describe("Organization API", () => {
 
       const response = await request(app)
         .post("/organization")
+        .set("Authorization", `Bearer ${authToken}`)
         .send({ name: orgName });
 
-      expect([400, 409, 500]).to.include(
-        response.status,
-        `Expected status 400, 409, or 500 for duplicate name "${orgName}" but got ${response.status}. Response: ${JSON.stringify(response.body)}`,
-      );
+      expect([400, 409, 500]).to.include(response.status);
     });
   });
 
@@ -182,20 +183,12 @@ describe("Organization API", () => {
     it("should auto-generate id for new organizations", async () => {
       const response = await request(app)
         .post("/organization")
-        .send({ name: "Auto ID Clinic" });
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Auto ID Clinic" })
+        .expect(201);
 
-      expect(
-        response.body.id,
-        `Created organization missing id field. Response: ${JSON.stringify(response.body)}`,
-      ).to.be.ok;
-      expect(response.body.id).to.be.a(
-        "number",
-        `Expected id to be a number but got ${typeof response.body.id}. Id value: ${response.body.id}`,
-      );
-      expect(response.body.id).to.be.greaterThan(
-        0,
-        `Expected id to be greater than 0 but got ${response.body.id}`,
-      );
+      expect(response.body.id).to.be.a("number");
+      expect(response.body.id).to.be.greaterThan(0);
     });
 
     it("should set createdAt timestamp", async () => {
@@ -203,19 +196,15 @@ describe("Organization API", () => {
 
       const response = await request(app)
         .post("/organization")
-        .send({ name: "Timestamp Clinic" });
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Timestamp Clinic" })
+        .expect(201);
 
       const afterCreate = new Date();
       const createdAt = new Date(response.body.createdAt);
 
-      expect(createdAt.getTime()).to.be.at.least(
-        beforeCreate.getTime(),
-        `Expected createdAt ${createdAt.toISOString()} to be at or after ${beforeCreate.toISOString()}. Response: ${JSON.stringify(response.body)}`,
-      );
-      expect(createdAt.getTime()).to.be.at.most(
-        afterCreate.getTime(),
-        `Expected createdAt ${createdAt.toISOString()} to be at or before ${afterCreate.toISOString()}. Response: ${JSON.stringify(response.body)}`,
-      );
+      expect(createdAt.getTime()).to.be.at.least(beforeCreate.getTime());
+      expect(createdAt.getTime()).to.be.at.most(afterCreate.getTime());
     });
 
     it("should set updatedAt timestamp", async () => {
@@ -223,34 +212,31 @@ describe("Organization API", () => {
 
       const response = await request(app)
         .post("/organization")
-        .send({ name: "Updated Clinic" });
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Updated Clinic" })
+        .expect(201);
 
       const afterCreate = new Date();
       const updatedAt = new Date(response.body.updatedAt);
 
-      expect(updatedAt.getTime()).to.be.at.least(
-        beforeCreate.getTime(),
-        `Expected updatedAt ${updatedAt.toISOString()} to be at or after ${beforeCreate.toISOString()}. Response: ${JSON.stringify(response.body)}`,
-      );
-      expect(updatedAt.getTime()).to.be.at.most(
-        afterCreate.getTime(),
-        `Expected updatedAt ${updatedAt.toISOString()} to be at or before ${afterCreate.toISOString()}. Response: ${JSON.stringify(response.body)}`,
-      );
+      expect(updatedAt.getTime()).to.be.at.least(beforeCreate.getTime());
+      expect(updatedAt.getTime()).to.be.at.most(afterCreate.getTime());
     });
 
     it("should increment organization IDs", async () => {
       const response1 = await request(app)
         .post("/organization")
-        .send({ name: "First Clinic" });
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "First Clinic" })
+        .expect(201);
 
       const response2 = await request(app)
         .post("/organization")
-        .send({ name: "Second Clinic" });
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Second Clinic" })
+        .expect(201);
 
-      expect(response2.body.id).to.be.greaterThan(
-        response1.body.id,
-        `Expected second organization id ${response2.body.id} to be greater than first organization id ${response1.body.id}. First org: ${JSON.stringify(response1.body)}, Second org: ${JSON.stringify(response2.body)}`,
-      );
+      expect(response2.body.id).to.be.greaterThan(response1.body.id);
     });
   });
 });

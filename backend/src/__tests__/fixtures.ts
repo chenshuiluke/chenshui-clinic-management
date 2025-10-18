@@ -3,6 +3,8 @@ import express from "express";
 import config from "../mikro-orm.config";
 import { createApp } from "../app";
 import Organization from "../entities/central/organization.entity";
+import User from "../entities/central/user.entity";
+import { jwtService } from "../services/jwt.service";
 
 let cachedOrm: MikroORM | null = null;
 let cachedApp: express.Application | null = null;
@@ -68,6 +70,7 @@ export async function clearDatabase(orm: MikroORM): Promise<void> {
 
   // Delete in order to respect foreign key constraints
   // await em.nativeDelete(Patient, {});
+  await em.nativeDelete(User, {});
   await em.nativeDelete(Organization, {});
 }
 
@@ -85,6 +88,26 @@ export async function createTestOrganization(
   });
   await em.persistAndFlush(org);
   return org;
+}
+
+/**
+ * Create test user
+ */
+export async function createTestUser(
+  orm: MikroORM,
+  data: Partial<{ email: string; name: string; password: string }> = {},
+): Promise<User> {
+  const em = orm.em.fork();
+  const hashedPassword = await jwtService.hashPassword(
+    data.password || "password123",
+  );
+  const user = em.create(User, {
+    email: data.email || "test@example.com",
+    name: data.name || "Test User",
+    password: hashedPassword,
+  });
+  await em.persistAndFlush(user);
+  return user;
 }
 
 // /**
