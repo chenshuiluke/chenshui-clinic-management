@@ -1,5 +1,6 @@
 import { MikroORM, EntityManager } from "@mikro-orm/postgresql";
 import orgConfig from "../mikro-orm-org.config";
+import { getOrgDbName } from "../utils/organization";
 
 interface CachedOrgOrm {
   orm: MikroORM;
@@ -72,7 +73,7 @@ export async function getOrgOrm(orgName: string): Promise<MikroORM> {
   }
 
   // Create organization-specific database name
-  const dbName = `clinic_${orgName.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+  const dbName = getOrgDbName(orgName);
 
   // Create new ORM instance with org-specific database
   console.log(

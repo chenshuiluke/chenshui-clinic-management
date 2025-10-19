@@ -11,6 +11,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53_targets from "aws-cdk-lib/aws-route53-targets";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import path from "path";
 
 export class InfrastructureStack extends cdk.Stack {
