@@ -3,7 +3,7 @@ import request from "supertest";
 import { describe, it, beforeEach } from "mocha";
 import { getApp, getOrm } from "./fixtures";
 import { jwtService } from "../services/jwt.service";
-import User from "../entities/central/user.entity";
+import User from "../entities/central/user";
 
 describe("Auth API", () => {
   let app: any;
@@ -407,7 +407,7 @@ describe("Auth API", () => {
 
   describe("Protected routes", () => {
     it("should require authentication for organization routes", async () => {
-      const response = await request(app).get("/organization").expect(401);
+      const response = await request(app).get("/organizations").expect(401);
 
       expect(response.body).to.have.property(
         "error",
@@ -432,7 +432,7 @@ describe("Auth API", () => {
       });
 
       const response = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", `Bearer ${accessToken}`)
         .expect(200);
 

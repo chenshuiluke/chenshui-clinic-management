@@ -1,5 +1,5 @@
 import { Entity, Property } from "@mikro-orm/core";
-import BaseEntity from "../base.entity";
+import BaseEntity from "../base";
 
 @Entity()
 export default class User extends BaseEntity {
@@ -13,5 +13,5 @@ export default class User extends BaseEntity {
   password!: string;
 
   @Property({ type: "text", nullable: true })
-  refreshToken?: string;
+  refreshToken?: string | null;
 }

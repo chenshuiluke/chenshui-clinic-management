@@ -2,8 +2,8 @@ import { MikroORM } from "@mikro-orm/postgresql";
 import express from "express";
 import config from "../mikro-orm.config";
 import { createApp } from "../app";
-import Organization from "../entities/central/organization.entity";
-import User from "../entities/central/user.entity";
+import Organization from "../entities/central/organization";
+import User from "../entities/central/user";
 import { jwtService } from "../services/jwt.service";
 
 let cachedOrm: MikroORM | null = null;

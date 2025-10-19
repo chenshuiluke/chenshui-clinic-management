@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { BaseController } from "./base";
-import Organization from "../entities/central/organization.entity";
+import BaseController from "./base";
+import Organization from "../entities/central/organization";
 
 export default class OrganizationController extends BaseController {
   create = async (req: Request, res: Response) => {

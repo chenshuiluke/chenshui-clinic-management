@@ -1,6 +1,6 @@
 import { Migration } from "@mikro-orm/migrations";
 
-export class Migration20251018030403_UpdateRefreshTokenField extends Migration {
+export class Migration20251018020403 extends Migration {
   override async up(): Promise<void> {
     this.addSql(
       `create table "user" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null, "email" varchar(255) not null, "name" varchar(255) not null, "password" varchar(255) not null, "refresh_token" varchar(255) null);`,
@@ -13,11 +13,10 @@ export class Migration20251018030403_UpdateRefreshTokenField extends Migration {
     );
 
     this.addSql(
-      `alter table "organization_user" drop constraint "organization_user_organization_id_foreign";`,
+      `create table "organization" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null, "name" varchar(255) not null);`,
     );
-
     this.addSql(
-      `alter table "organization_user" drop column "organization_id";`,
+      `alter table "organization" add constraint "organization_name_unique" unique ("name");`,
     );
   }
 

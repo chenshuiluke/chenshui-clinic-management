@@ -2,13 +2,14 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/server.ts",
-    "test": "mocha --require tsx/cjs --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
-    "test:watch": "mocha --require tsx/cjs --watch --watch-files 'src/**/*.ts' --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
+    "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
+    "test:watch": "NODE_OPTIONS='--import tsx --no-warnings' mocha --watch --watch-files 'src/**/*.ts' --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
     "migration:create": "mikro-orm migration:create",
     "migration:up": "mikro-orm migration:up",
     "migration:down": "mikro-orm migration:down",
@@ -18,9 +19,9 @@
     "test:coverage": "nyc npm test"
   },
   "mikro-orm": {
-    "useTsNode": true,
+    "useTsNode": false,
     "configPaths": [
-      "./src/mikro-orm.config.ts",
+      "./mikro-orm.config.mjs",
       "./dist/mikro-orm.config.js"
     ]
   },
@@ -28,6 +29,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.913.0",
     "@aws-sdk/client-sqs": "^3.911.0",
     "@mikro-orm/cli": "^6.5.8",
     "@mikro-orm/core": "^6.5.8",

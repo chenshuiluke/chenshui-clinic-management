@@ -1,7 +1,7 @@
 import { EntityManager } from "@mikro-orm/core";
 import { Seeder } from "@mikro-orm/seeder";
-import Organization from "../entities/central/organization.entity";
-import Patient from "../entities/distributed/patient_profile.entity";
+import Organization from "../entities/central/organization";
+import Patient from "../entities/distributed/patient_profile";
 
 export class DatabaseSeeder extends Seeder {
   async run(em: EntityManager): Promise<void> {

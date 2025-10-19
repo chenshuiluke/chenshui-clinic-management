@@ -1,13 +1,9 @@
 import { Request, Response } from "express";
 import { RequestContext } from "@mikro-orm/core";
-import User from "../entities/central/user.entity";
+import User from "../entities/central/user";
 import { jwtService } from "../services/jwt.service";
 import { JWTPayload } from "../config/jwt.config";
-import {
-  LoginDto,
-  RegisterDto,
-  RefreshTokenDto,
-} from "../validators/auth.validator";
+import { LoginDto, RegisterDto, RefreshTokenDto } from "../validators/auth";
 
 export class AuthController {
   async login(req: Request, res: Response): Promise<void> {

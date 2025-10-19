@@ -7,10 +7,10 @@ import {
   BeforeUpdate,
   ValidationError,
 } from "@mikro-orm/core";
-import BaseEntity from "../base.entity";
-import Organization from "../central/organization.entity";
-import PatientProfile from "./patient_profile.entity";
-import DoctorProfile from "./doctor_profile.entity";
+import BaseEntity from "../base";
+import Organization from "../central/organization";
+import PatientProfile from "./patient_profile";
+import DoctorProfile from "./doctor_profile";
 @Entity()
 export default class OrganizationUser extends BaseEntity {
   @Property()

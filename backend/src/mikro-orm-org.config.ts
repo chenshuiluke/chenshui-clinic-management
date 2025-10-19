@@ -30,8 +30,8 @@ const config = defineConfig({
   extensions: [Migrator],
 
   migrations: {
-    path: "./dist/migrations/centralized",
-    pathTs: "./src/migrations/centralized",
+    path: "./dist/migrations/distributed",
+    pathTs: "./src/migrations/distributed",
     glob: "!(*.d).{js,ts}",
     transactional: true,
     disableForeignKeys: false,

@@ -11,13 +11,6 @@ export class Migration20251018023124 extends Migration {
     );
 
     this.addSql(
-      `create table "organization" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null, "name" varchar(255) not null);`,
-    );
-    this.addSql(
-      `alter table "organization" add constraint "organization_name_unique" unique ("name");`,
-    );
-
-    this.addSql(
       `create table "patient_profile" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null);`,
     );
 
@@ -47,5 +40,13 @@ export class Migration20251018023124 extends Migration {
             (patient_profile_id IS NOT NULL AND doctor_profile_id IS NULL) OR
             (patient_profile_id IS NULL AND doctor_profile_id IS NOT NULL) OR
             (patient_profile_id IS NULL AND doctor_profile_id IS NULL)`);
+
+    this.addSql(
+      `alter table "organization_user" drop constraint "organization_user_organization_id_foreign";`,
+    );
+
+    this.addSql(
+      `alter table "organization_user" drop column "organization_id";`,
+    );
   }
 }

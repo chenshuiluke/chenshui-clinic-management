@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
-import Organization from "../entities/central/organization.entity";
+import Organization from "../entities/central/organization";
 import {
   getApp,
   getOrm,
@@ -35,7 +35,7 @@ describe("Organization API", () => {
 
   describe("GET /organization", () => {
     it("should require authentication", async () => {
-      const response = await request(app).get("/organization").expect(401);
+      const response = await request(app).get("/organizations").expect(401);
 
       expect(response.body).to.have.property(
         "error",
@@ -45,7 +45,7 @@ describe("Organization API", () => {
 
     it("should return an empty array when no organizations exist", async () => {
       const response = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .expect(200);
 
@@ -59,7 +59,7 @@ describe("Organization API", () => {
       await createTestOrganization(orm, { name: "Clinic C" });
 
       const response = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .expect(200);
 
@@ -78,11 +78,11 @@ describe("Organization API", () => {
       await createTestOrganization(orm, { name: "Beta Clinic" });
 
       const response1 = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", `Bearer ${authToken}`);
 
       const response2 = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", `Bearer ${authToken}`);
 
       expect(response1.body).to.deep.equal(response2.body);
@@ -90,7 +90,7 @@ describe("Organization API", () => {
 
     it("should reject invalid token", async () => {
       const response = await request(app)
-        .get("/organization")
+        .get("/organizations")
         .set("Authorization", "Bearer invalid-token")
         .expect(401);
 
@@ -104,7 +104,7 @@ describe("Organization API", () => {
   describe("POST /organization", () => {
     it("should require authentication", async () => {
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .send({ name: "New Clinic" })
         .expect(401);
 
@@ -120,7 +120,7 @@ describe("Organization API", () => {
       };
 
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send(newOrg)
         .set("Content-Type", "application/json")
@@ -138,7 +138,7 @@ describe("Organization API", () => {
       };
 
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send(newOrg)
         .expect(201);
@@ -155,7 +155,7 @@ describe("Organization API", () => {
 
       for (const invalidData of invalidNames) {
         const response = await request(app)
-          .post("/organization")
+          .post("/organizations")
           .set("Authorization", `Bearer ${authToken}`)
           .send(invalidData)
           .set("Content-Type", "application/json")
@@ -171,7 +171,7 @@ describe("Organization API", () => {
       await createTestOrganization(orm, { name: orgName });
 
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: orgName });
 
@@ -182,7 +182,7 @@ describe("Organization API", () => {
   describe("Organization Data Integrity", () => {
     it("should auto-generate id for new organizations", async () => {
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: "Auto ID Clinic" })
         .expect(201);
@@ -195,7 +195,7 @@ describe("Organization API", () => {
       const beforeCreate = new Date();
 
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: "Timestamp Clinic" })
         .expect(201);
@@ -211,7 +211,7 @@ describe("Organization API", () => {
       const beforeCreate = new Date();
 
       const response = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: "Updated Clinic" })
         .expect(201);
@@ -225,13 +225,13 @@ describe("Organization API", () => {
 
     it("should increment organization IDs", async () => {
       const response1 = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: "First Clinic" })
         .expect(201);
 
       const response2 = await request(app)
-        .post("/organization")
+        .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: "Second Clinic" })
         .expect(201);
