@@ -1,12 +1,88 @@
 import { Request, Response } from "express";
 import BaseController from "./base";
 import Organization from "../entities/central/organization";
+import {
+  createOrganizationDb,
+  deleteOrganizationDb,
+} from "../services/organization";
 
 export default class OrganizationController extends BaseController {
   create = async (req: Request, res: Response) => {
-    const organization = this.em.create(Organization, req.body);
-    await this.em.persistAndFlush(organization);
-    res.status(201).json(organization);
+    let dbCreated = false;
+    const orgName = req.body.name;
+
+    try {
+      // Create the organization entity in the central database but don't persist it yet
+      const organization = this.em.create(Organization, req.body);
+
+      // Create the organization's dedicated database and credentials
+      const dbResult = await createOrganizationDb(organization.name);
+      dbCreated = true;
+
+      try {
+        // Persist to central database only after the database creation succeeded
+        await this.em.persistAndFlush(organization);
+
+        // Return the organization along with database creation info
+        res.status(201).json({
+          id: organization.id,
+          name: organization.name,
+          createdAt: organization.createdAt,
+          updatedAt: organization.updatedAt,
+          database: {
+            created: true,
+            dbName: dbResult.dbName,
+            secretName: dbResult.secretName,
+            message: dbResult.message,
+          },
+        });
+      } catch (persistError) {
+        // If persisting to central DB fails, rollback the database creation
+        console.error(
+          "Failed to persist organization to central DB, rolling back database creation:",
+          persistError,
+        );
+
+        await deleteOrganizationDb(organization.name);
+
+        if (
+          persistError instanceof Error &&
+          persistError.message.includes("unique")
+        ) {
+          return res.status(409).json({
+            error: "Organization with this name already exists",
+          });
+        }
+
+        throw persistError;
+      }
+    } catch (error) {
+      console.error("Failed to create organization:", error);
+
+      // If database was created but we haven't returned yet, clean it up
+      if (dbCreated && orgName) {
+        await deleteOrganizationDb(orgName);
+      }
+
+      if (error instanceof Error && error.message.includes("unique")) {
+        return res.status(409).json({
+          error: "Organization with this name already exists",
+        });
+      }
+
+      if (
+        error instanceof Error &&
+        error.message.includes("Failed to create organization database")
+      ) {
+        return res.status(500).json({
+          error: error.message,
+        });
+      }
+
+      res.status(500).json({
+        error: "Failed to create organization",
+      });
+    }
   };
 
   getAllOrganizations = async (req: Request, res: Response) => {
