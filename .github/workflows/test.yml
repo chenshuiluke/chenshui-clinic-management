@@ -30,10 +30,10 @@ jobs:
         run: |
           docker compose -f docker-compose.yaml -f docker-compose.test.yaml down -v || true
 
-  test-with-coverage:
+  generate-coverage:
     runs-on: ubuntu-latest
     # Run coverage only on main branch to avoid rate limits
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
