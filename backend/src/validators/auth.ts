@@ -15,6 +15,11 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required')
 });
 
+export const verifyUserSchema = z.object({
+  userId: z.number().int().positive('User ID must be a positive integer')
+});
+
 export type LoginDto = z.infer<typeof loginSchema>;
 export type RegisterDto = z.infer<typeof registerSchema>;
 export type RefreshTokenDto = z.infer<typeof refreshTokenSchema>;
+export type VerifyUserDto = z.infer<typeof verifyUserSchema>;

@@ -18,5 +18,16 @@
   "hosted-zone:account=918595517105:domainName=clinic.lukecs.com:privateZone=false:region=us-east-1": {
     "Id": "/hostedzone/Z022257720BUP3B7T8TVI",
     "Name": "clinic.lukecs.com."
-  }
+  },
+  "availability-zones:account=918595517105:region=us-east-2": [
+    "us-east-2a",
+    "us-east-2b",
+    "us-east-2c"
+  ],
+  "availability-zones:account=918595517105:region=us-west-2": [
+    "us-west-2a",
+    "us-west-2b",
+    "us-west-2c",
+    "us-west-2d"
+  ]
 }

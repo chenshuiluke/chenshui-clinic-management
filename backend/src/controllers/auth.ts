@@ -3,7 +3,12 @@ import { RequestContext } from "@mikro-orm/core";
 import User from "../entities/central/user";
 import { jwtService } from "../services/jwt.service";
 import { JWTPayload } from "../config/jwt.config";
-import { LoginDto, RegisterDto, RefreshTokenDto } from "../validators/auth";
+import {
+  LoginDto,
+  RegisterDto,
+  RefreshTokenDto,
+  VerifyUserDto,
+} from "../validators/auth";
 
 export class AuthController {
   async login(req: Request, res: Response): Promise<void> {
@@ -18,6 +23,11 @@ export class AuthController {
         !(await jwtService.comparePassword(password, user.password))
       ) {
         res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      if (user.isVerified === false) {
+        res.status(401).json({ error: "User not verified" });
         return;
       }
 
@@ -65,6 +75,7 @@ export class AuthController {
         email,
         name,
         password: hashedPassword,
+        isVerified: false,
       });
 
       await em.persistAndFlush(user);
@@ -150,6 +161,29 @@ export class AuthController {
       res.json({ message: "Logged out successfully" });
     } catch (error) {
       res.status(500).json({ error: "Logout failed" });
+    }
+  }
+
+  async verify(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId }: VerifyUserDto = req.body;
+      const em = RequestContext.getEntityManager()!;
+      const user = await em.findOne(User, { id: userId });
+
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+      if (user.isVerified) {
+        res.status(400).json({ error: "User already verified" });
+        return;
+      }
+      user.isVerified = true;
+      await em.flush();
+
+      res.json({ message: "User verified successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Verification failed" });
     }
   }
 }

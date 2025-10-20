@@ -4,6 +4,7 @@ import { describe, it, beforeEach } from "mocha";
 import { getApp, getOrm } from "./fixtures";
 import { jwtService } from "../services/jwt.service";
 import User from "../entities/central/user";
+import { is } from "zod/v4/locales";
 
 describe("Auth API", () => {
   let app: any;
@@ -131,6 +132,7 @@ describe("Auth API", () => {
         email: "login@example.com",
         name: "Login User",
         password: hashedPassword,
+        isVerified: true,
       });
       await em.persistAndFlush(user);
     });
@@ -205,6 +207,32 @@ describe("Auth API", () => {
         "error",
         "Invalid credentials",
         `Expected invalid credentials error for wrong password but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+
+    it("should reject unverified user", async () => {
+      const em = orm.em.fork();
+      const hashedPassword = await jwtService.hashPassword("password123");
+      const unverifiedUser = em.create(User, {
+        email: "unverified@example.com",
+        name: "Unverified User",
+        password: hashedPassword,
+        isVerified: false,
+      });
+      await em.persistAndFlush(unverifiedUser);
+
+      const response = await request(app)
+        .post("/auth/login")
+        .send({
+          email: "unverified@example.com",
+          password: "password123",
+        })
+        .expect(401);
+
+      expect(response.body).to.have.property(
+        "error",
+        "User not verified",
+        `Expected user not verified error but got: ${JSON.stringify(response.body)}`,
       );
     });
   });
@@ -401,6 +429,138 @@ describe("Auth API", () => {
         "error",
         "Authentication token required",
         `Expected authentication required error for logout but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+  });
+
+  describe("POST /auth/verify", () => {
+    let verifierAccessToken: string;
+    let unverifiedUserId: number;
+
+    beforeEach(async () => {
+      const em = orm.em.fork();
+      const hashedPassword = await jwtService.hashPassword("password123");
+
+      // Create a verifier user (the one who will verify others)
+      const verifierUser = em.create(User, {
+        email: "verifier@example.com",
+        name: "Verifier User",
+        password: hashedPassword,
+        isVerified: true,
+      });
+
+      // Create an unverified user
+      const unverifiedUser = em.create(User, {
+        email: "toverify@example.com",
+        name: "To Verify User",
+        password: hashedPassword,
+        isVerified: false,
+      });
+
+      await em.persistAndFlush([verifierUser, unverifiedUser]);
+
+      unverifiedUserId = unverifiedUser.id;
+      verifierAccessToken = jwtService.generateAccessToken({
+        userId: verifierUser.id,
+        email: verifierUser.email,
+        name: verifierUser.name,
+      });
+    });
+
+    it("should verify a user with valid userId", async () => {
+      const response = await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({ userId: unverifiedUserId })
+        .expect(200);
+
+      expect(response.body).to.have.property(
+        "message",
+        "User verified successfully",
+        `Expected success message but got: ${JSON.stringify(response.body)}`,
+      );
+
+      // Verify the user is now verified in the database
+      const em = orm.em.fork();
+      const user = await em.findOne(User, { id: unverifiedUserId });
+      expect(user!.isVerified).to.be.true;
+    });
+
+    it("should reject verification without authentication", async () => {
+      const response = await request(app)
+        .post("/auth/verify")
+        .send({ userId: unverifiedUserId })
+        .expect(401);
+
+      expect(response.body).to.have.property(
+        "error",
+        "Authentication token required",
+        `Expected authentication required error but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+
+    it("should reject verification of non-existent user", async () => {
+      const nonExistentUserId = 99999;
+      const response = await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({ userId: nonExistentUserId })
+        .expect(404);
+
+      expect(response.body).to.have.property(
+        "error",
+        "User not found",
+        `Expected user not found error for userId ${nonExistentUserId} but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+
+    it("should reject verification of already verified user", async () => {
+      // First verify the user
+      await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({ userId: unverifiedUserId })
+        .expect(200);
+
+      // Try to verify again
+      const response = await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({ userId: unverifiedUserId })
+        .expect(400);
+
+      expect(response.body).to.have.property(
+        "error",
+        "User already verified",
+        `Expected user already verified error but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+
+    it("should validate userId is a positive integer", async () => {
+      const response = await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({ userId: -1 })
+        .expect(400);
+
+      expect(response.body).to.have.property(
+        "error",
+        "Validation failed",
+        `Expected validation error for negative userId but got: ${JSON.stringify(response.body)}`,
+      );
+    });
+
+    it("should validate userId is required", async () => {
+      const response = await request(app)
+        .post("/auth/verify")
+        .set("Authorization", `Bearer ${verifierAccessToken}`)
+        .send({})
+        .expect(400);
+
+      expect(response.body).to.have.property(
+        "error",
+        "Validation failed",
+        `Expected validation error for missing userId but got: ${JSON.stringify(response.body)}`,
       );
     });
   });

@@ -6,6 +6,7 @@ import {
   loginSchema,
   registerSchema,
   refreshTokenSchema,
+  verifyUserSchema,
 } from "../validators/auth";
 
 const router = Router();
@@ -26,6 +27,10 @@ router.get("/me", authenticate, (req, res) => authController.me(req, res));
 
 router.post("/logout", authenticate, (req, res) =>
   authController.logout(req, res),
+);
+
+router.post("/verify", authenticate, validateRequest(verifyUserSchema), (req, res) =>
+  authController.verify(req, res),
 );
 
 export default router;

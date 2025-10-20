@@ -14,4 +14,7 @@ export default class User extends BaseEntity {
 
   @Property({ type: "text", nullable: true })
   refreshToken?: string | null;
+
+  @Property({ type: "boolean", default: false })
+  isVerified!: boolean;
 }
