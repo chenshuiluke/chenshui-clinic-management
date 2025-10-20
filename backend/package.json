@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "tsx dist/server.js",
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/server.ts",
     "test": "NODE_OPTIONS='--import tsx --no-warnings' mocha --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
     "test:watch": "NODE_OPTIONS='--import tsx --no-warnings' mocha --watch --watch-files 'src/**/*.ts' --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
@@ -37,6 +37,8 @@
     "@mikro-orm/postgresql": "^6.5.8",
     "@mikro-orm/reflection": "^6.5.8",
     "@mikro-orm/seeder": "^6.5.8",
+    "@types/pg-format": "^1.0.5",
+    "aws-sdk-client-mock": "^4.1.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -45,7 +47,8 @@
     "pg-format": "^1.0.4",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
@@ -57,14 +60,12 @@
     "@types/node": "^24.7.0",
     "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.2",
-    "aws-sdk-client-mock": "^4.1.0",
     "chai": "^5.1.2",
     "mocha": "^11.0.1",
     "nodemon": "^3.1.10",
     "nyc": "^15.1.0",
     "supertest": "^7.0.0",
     "ts-node": "^10.9.2",
-    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   },
   "nyc": {
@@ -87,6 +88,7 @@
       "src/**/*.d.ts"
     ],
     "branches": 50,
+    "lines": 50,
     "functions": 50,
     "statements": 50
   }

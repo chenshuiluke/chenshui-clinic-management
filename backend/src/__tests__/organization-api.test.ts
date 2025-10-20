@@ -249,11 +249,12 @@ describe("Organization API", () => {
       expect(calls).to.have.lengthOf(1);
 
       const call = calls[0];
-      expect(call.args[0].input.Name).to.equal("clinic-db-secret_test_clinic");
-      expect(call.args[0].input.Description).to.include(orgName);
+      expect(call).to.not.be.undefined;
+      expect(call!.args[0].input.Name).to.equal("clinic-db-secret_test_clinic");
+      expect(call!.args[0].input.Description).to.include(orgName);
 
       // Check secret value structure
-      const secretValue = JSON.parse(call.args[0].input.SecretString || "{}");
+      const secretValue = JSON.parse(call!.args[0].input.SecretString || "{}");
       expect(secretValue).to.have.property(
         "username",
         "secret_test_clinic_user",
@@ -271,7 +272,7 @@ describe("Organization API", () => {
       );
 
       // Check tags
-      const tags = call.args[0].input.Tags || [];
+      const tags = call!.args[0].input.Tags || [];
       const tagMap = tags.reduce((acc: any, tag: any) => {
         acc[tag.Key] = tag.Value;
         return acc;

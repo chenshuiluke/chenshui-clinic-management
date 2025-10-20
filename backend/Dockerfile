@@ -12,26 +12,9 @@ RUN npm i
 
 # Copy source code
 COPY src ./src
-
+RUN npm i
 # Build TypeScript
 RUN npm run build
-
-# Production stage
-FROM node:22-alpine
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install only production dependencies
-RUN npm i --omit=dev && \
-    npm cache clean --force
-
-COPY --from=builder /app/dist ./dist
-
-# Copy source TypeScript files needed by MikroORM CLI
-COPY --from=builder /app/src ./src
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -47,4 +30,4 @@ USER nodejs
 EXPOSE 3000
 
 # Start the application
-CMD ["node", "dist/server.js"]
+CMD ["./node_modules/.bin/tsx", "dist/server.js"]
