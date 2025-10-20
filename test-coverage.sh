@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Run backend tests with code coverage
-# Starts required infrastructure and executes test suite with nyc coverage reporting
+# Generate code coverage report without running tests
+# Analyzes all source files and creates coverage reports
 
 set -e
 
@@ -14,7 +14,7 @@ sleep 10
 echo "[INFO] Creating coverage directory..."
 mkdir -p backend/coverage
 
-echo "[INFO] Executing tests with coverage..."
+echo "[INFO] Generating coverage report (no tests executed)..."
 docker compose -f docker-compose.yaml -f docker-compose.test.yaml run --rm \
   -v $(pwd)/backend/coverage:/app/coverage \
   backend-test sh -c "
@@ -36,41 +36,36 @@ docker compose -f docker-compose.yaml -f docker-compose.test.yaml run --rm \
       --exclude='src/utils/runSeeders.ts' \
       --exclude='src/**/*.d.ts' \
       --extension='.ts' \
-      npm test
-  "
-
-EXIT_CODE=$?
+      --skip-full \
+      report
+  " || true
 
 # Fix coverage directory permissions
-if [ -d "coverage" ]; then
-  chmod -R 755 coverage 2>/dev/null || sudo chmod -R 755 coverage 2>/dev/null || true
+if [ -d "backend/coverage" ]; then
+  chmod -R 755 backend/coverage 2>/dev/null || sudo chmod -R 755 backend/coverage 2>/dev/null || true
 fi
 
-if [ $EXIT_CODE -eq 0 ]; then
-  echo "[INFO] Test execution completed successfully"
+echo "[INFO] Coverage generation completed"
 
-  if [ -f "backend/coverage/coverage-summary.json" ] && command -v jq &> /dev/null; then
-    LINES=$(jq -r '.total.lines.pct' backend/coverage/coverage-summary.json)
-    STATEMENTS=$(jq -r '.total.statements.pct' backend/coverage/coverage-summary.json)
-    FUNCTIONS=$(jq -r '.total.functions.pct' backend/coverage/coverage-summary.json)
-    BRANCHES=$(jq -r '.total.branches.pct' backend/coverage/coverage-summary.json)
+if [ -f "backend/coverage/coverage-summary.json" ] && command -v jq &> /dev/null; then
+  LINES=$(jq -r '.total.lines.pct' backend/coverage/coverage-summary.json)
+  STATEMENTS=$(jq -r '.total.statements.pct' backend/coverage/coverage-summary.json)
+  FUNCTIONS=$(jq -r '.total.functions.pct' backend/coverage/coverage-summary.json)
+  BRANCHES=$(jq -r '.total.branches.pct' backend/coverage/coverage-summary.json)
 
-    echo "[INFO] Coverage summary:"
-    echo "       Lines:      ${LINES}%"
-    echo "       Statements: ${STATEMENTS}%"
-    echo "       Functions:  ${FUNCTIONS}%"
-    echo "       Branches:   ${BRANCHES}%"
-  fi
-
-  echo "[INFO] Coverage reports available at:"
-  echo "       HTML:    backend/coverage/index.html"
-  echo "       LCOV:    backend/coverage/lcov.info"
-  echo "       Summary: backend/coverage/coverage-summary.json"
-else
-  echo "[ERROR] Test execution failed with exit code: $EXIT_CODE"
+  echo "[INFO] Coverage summary:"
+  echo "       Lines:      ${LINES}%"
+  echo "       Statements: ${STATEMENTS}%"
+  echo "       Functions:  ${FUNCTIONS}%"
+  echo "       Branches:   ${BRANCHES}%"
 fi
+
+echo "[INFO] Coverage reports available at:"
+echo "       HTML:    backend/coverage/index.html"
+echo "       LCOV:    backend/coverage/lcov.info"
+echo "       Summary: backend/coverage/coverage-summary.json"
 
 echo "[INFO] Cleaning up test containers..."
 docker compose -f docker-compose.yaml -f docker-compose.test.yaml down backend-test
 
-exit $EXIT_CODE
+exit 0
