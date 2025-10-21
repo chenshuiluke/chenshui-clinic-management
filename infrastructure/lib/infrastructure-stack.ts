@@ -1,6 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import { Vpc } from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
@@ -11,6 +11,12 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as route53_targets from "aws-cdk-lib/aws-route53-targets";
+
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+
 import path from "path";
 
 export class InfrastructureStack extends cdk.Stack {
@@ -143,5 +149,81 @@ export class InfrastructureStack extends cdk.Stack {
       ec2.Port.tcp(5432),
       "Allow Fargate tasks to connect to RDS",
     );
+
+    // Add alarms for outages or signs of upcoming issues like resource exhaustion
+    const alertTopic = new sns.Topic(this, "CriticalAlerts");
+    alertTopic.addSubscription(
+      new sns_subscriptions.EmailSubscription("chenshuiluke@gmail.com"),
+    );
+
+    const alarm500Errors = new cloudwatch.Alarm(this, "ALB500Errors", {
+      metric: new cloudwatch.Metric({
+        namespace: "AWS/ApplicationELB",
+        metricName: "HTTPCode_Target_5XX_Count",
+        dimensionsMap: {
+          LoadBalancer: fargateService.loadBalancer.loadBalancerFullName,
+          TargetGroup: fargateService.targetGroup.targetGroupFullName,
+        },
+        statistic: "Sum",
+        period: cdk.Duration.minutes(1),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      alarmDescription: "Any 500 error from the API",
+    });
+
+    const alarmNoRunningTasks = new cloudwatch.Alarm(this, "NoRunningTasks", {
+      metric: new cloudwatch.Metric({
+        namespace: "AWS/ECS",
+        metricName: "RunningTaskCount",
+        dimensionsMap: {
+          ClusterName: cluster.clusterName,
+          ServiceName: fargateService.service.serviceName,
+        },
+        statistic: "Average",
+        period: cdk.Duration.minutes(1),
+      }),
+      threshold: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+      evaluationPeriods: 3,
+      treatMissingData: cloudwatch.TreatMissingData.BREACHING,
+      alarmDescription: "No API tasks running for 3+ minutes",
+    });
+
+    const alarmDBConnectionFailures = new cloudwatch.Alarm(
+      this,
+      "DBConnectionFailures",
+      {
+        metric: db.metricDatabaseConnections(),
+        threshold: 15, // ~75% of max for t3.micro (20 connections)
+        evaluationPeriods: 2,
+        alarmDescription: "Database approaching connection limit",
+      },
+    );
+
+    const alarmHighCPU = new cloudwatch.Alarm(this, "HighCPU", {
+      metric: fargateService.service.metricCpuUtilization(),
+      threshold: 90,
+      evaluationPeriods: 2,
+      alarmDescription: "API CPU above 90% for 2+ minutes",
+    });
+
+    const alarmHighMemory = new cloudwatch.Alarm(this, "HighMemory", {
+      metric: fargateService.service.metricMemoryUtilization(),
+      threshold: 90,
+      evaluationPeriods: 2,
+      alarmDescription: "API Memory above 90% for 2+ minutes",
+    });
+
+    [
+      alarmDBConnectionFailures,
+      alarmHighCPU,
+      alarmHighMemory,
+      alarmNoRunningTasks,
+      alarm500Errors,
+    ].forEach((alarm) => {
+      alarm.addAlarmAction(new cloudwatch_actions.SnsAction(alertTopic));
+    });
   }
 }

@@ -13,16 +13,16 @@ import PatientProfile from "./patient_profile";
 import DoctorProfile from "./doctor_profile";
 @Entity()
 export default class OrganizationUser extends BaseEntity {
-  @Property()
+  @Property({ type: 'string' })
   email!: string;
 
-  @Property()
+  @Property({ type: 'string' })
   password!: string;
 
-  @Property()
+  @Property({ type: 'string' })
   firstName!: string;
 
-  @Property()
+  @Property({ type: 'string' })
   lastName!: string;
 
   @OneToOne({ nullable: true })

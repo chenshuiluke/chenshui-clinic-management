@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { RequestContext } from "@mikro-orm/core";
 import { getOrgOrm } from "../db/organization-db";
-import centralizedOrm from "../db/centralized-db";
+import { getOrm } from "../db/centralized-db";
 
+// This adds organization as a field to the request object
 declare global {
   namespace Express {
     interface Request {
@@ -36,6 +37,7 @@ export async function orgContext(
       RequestContext.create(orgOrm.em, next);
     } else {
       // Use central ORM for non-organization requests
+      const centralizedOrm = await getOrm();
       RequestContext.create(centralizedOrm.em, next);
     }
   } catch (error) {

@@ -8,7 +8,7 @@ import OrganizationRouter from "./routes/organization";
 import AuthRouter from "./routes/auth";
 import { authenticate } from "./middleware/auth";
 import { orgContext } from "./middleware/org";
-import centralizedOrm from "./db/centralized-db";
+import { getOrm } from "./db/centralized-db";
 import { closeAllOrgConnections } from "./db/organization-db";
 
 export async function createApp(orm: MikroORM): Promise<express.Application> {
@@ -37,7 +37,7 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
 
 export async function bootstrap(port = 3000) {
   dotenv.config();
-  const orm = centralizedOrm;
+  const orm = await getOrm();
   await runMigrations(orm);
 
   const app = await createApp(orm);

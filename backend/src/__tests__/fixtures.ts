@@ -105,6 +105,7 @@ export async function createTestUser(
     email: data.email || "test@example.com",
     name: data.name || "Test User",
     password: hashedPassword,
+    isVerified: false,
   });
   await em.persistAndFlush(user);
   return user;

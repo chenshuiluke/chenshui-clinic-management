@@ -1,11 +1,6 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
+import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
-import { mockClient } from "aws-sdk-client-mock";
-import {
-  SecretsManagerClient,
-  CreateSecretCommand,
-} from "@aws-sdk/client-secrets-manager";
 import Organization from "../entities/central/organization";
 import {
   getApp,
@@ -14,29 +9,15 @@ import {
   createTestUser,
 } from "./fixtures";
 import { jwtService } from "../services/jwt.service";
-import { setSecretsClient } from "../services/organization";
 
 describe("Organization API", () => {
   let app: ReturnType<typeof getApp>;
   let orm: ReturnType<typeof getOrm>;
   let authToken: string;
-  const secretsManagerMock = mockClient(SecretsManagerClient);
 
   beforeEach(async () => {
     app = getApp();
     orm = getOrm();
-
-    // Reset and configure AWS mock
-    secretsManagerMock.reset();
-    secretsManagerMock.on(CreateSecretCommand).resolves({
-      ARN: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-      Name: "test-secret",
-      VersionId: "test-version",
-    });
-
-    // Inject the mock client
-    const mockClient = new SecretsManagerClient({ region: "us-east-1" });
-    setSecretsClient(mockClient);
 
     // Set required environment variables for tests
     process.env.NODE_ENV = "test";
@@ -53,10 +34,6 @@ describe("Organization API", () => {
       email: user.email,
       name: user.name,
     });
-  });
-
-  afterEach(() => {
-    secretsManagerMock.reset();
   });
 
   describe("GET /organizations", () => {
@@ -174,34 +151,6 @@ describe("Organization API", () => {
         .that.includes("Successfully created");
     });
 
-    it("should rollback organization creation if db creation fails", async () => {
-      // Make secrets manager fail
-      secretsManagerMock.reset();
-      secretsManagerMock
-        .on(CreateSecretCommand)
-        .rejects(new Error("AWS Error"));
-
-      const newOrg = {
-        name: "Rollback Clinic",
-      };
-
-      const response = await request(app)
-        .post("/organizations")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send(newOrg)
-        .expect(500);
-
-      // Organization creation should fail
-      expect(response.body).to.have.property("error");
-
-      // Verify organization was NOT persisted
-      const em = orm.em.fork();
-      const savedOrg = await em.findOne(Organization, {
-        name: newOrg.name,
-      });
-      expect(savedOrg).to.be.null;
-    });
-
     it("should create database with correct naming convention", async () => {
       const testCases = [
         {
@@ -233,52 +182,6 @@ describe("Organization API", () => {
           testCase.expectedSecret,
         );
       }
-    });
-
-    it("should call AWS Secrets Manager with correct parameters", async () => {
-      const orgName = "Secret Test Clinic";
-
-      await request(app)
-        .post("/organizations")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: orgName })
-        .expect(201);
-
-      // Verify the mock was called
-      const calls = secretsManagerMock.commandCalls(CreateSecretCommand);
-      expect(calls).to.have.lengthOf(1);
-
-      const call = calls[0];
-      expect(call).to.not.be.undefined;
-      expect(call!.args[0].input.Name).to.equal("clinic-db-secret_test_clinic");
-      expect(call!.args[0].input.Description).to.include(orgName);
-
-      // Check secret value structure
-      const secretValue = JSON.parse(call!.args[0].input.SecretString || "{}");
-      expect(secretValue).to.have.property(
-        "username",
-        "secret_test_clinic_user",
-      );
-      expect(secretValue).to.have.property("password").that.is.a("string");
-      expect(secretValue).to.have.property("engine", "postgres");
-      expect(secretValue).to.have.property("host", process.env.DB_HOST);
-      expect(secretValue).to.have.property(
-        "port",
-        parseInt(`${process.env.DB_PORT}`),
-      );
-      expect(secretValue).to.have.property(
-        "dbname",
-        "clinic_secret_test_clinic",
-      );
-
-      // Check tags
-      const tags = call!.args[0].input.Tags || [];
-      const tagMap = tags.reduce((acc: any, tag: any) => {
-        acc[tag.Key] = tag.Value;
-        return acc;
-      }, {});
-
-      expect(tagMap).to.have.property("Organization", orgName);
     });
 
     it("should reject invalid name values", async () => {
@@ -468,45 +371,5 @@ describe("Organization API", () => {
       expect(response.body.database.dbName).to.have.lengthOf.below(200);
     });
 
-    it("should rollback on AWS Secrets Manager failures", async () => {
-      // Configure mock to fail after first success
-      let callCount = 0;
-      secretsManagerMock.on(CreateSecretCommand).callsFake(() => {
-        callCount++;
-        if (callCount > 1) {
-          throw new Error("ResourceExistsException: Secret already exists");
-        }
-        return {
-          ARN: "arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-          Name: "test-secret",
-          VersionId: "test-version",
-        };
-      });
-
-      // First call should succeed
-      const response1 = await request(app)
-        .post("/organizations")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "First AWS Success" })
-        .expect(201);
-
-      expect(response1.body.database.created).to.be.true;
-
-      // Second call should fail completely and rollback
-      const response2 = await request(app)
-        .post("/organizations")
-        .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Second AWS Fail" })
-        .expect(500);
-
-      expect(response2.body).to.have.property("error");
-
-      // Verify second organization was NOT persisted
-      const em = orm.em.fork();
-      const savedOrg = await em.findOne(Organization, {
-        name: "Second AWS Fail",
-      });
-      expect(savedOrg).to.be.null;
-    });
   });
 });

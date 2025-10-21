@@ -1,6 +1,13 @@
 import config from "../mikro-orm.config";
-import { MikroORM } from "@mikro-orm/core";
+import { MikroORM } from "@mikro-orm/postgresql";
 
-const orm = await MikroORM.init(config);
+let ormInstance: MikroORM | null = null;
 
-export default orm;
+export async function getOrm(): Promise<MikroORM> {
+  if (!ormInstance) {
+    ormInstance = await MikroORM.init(config);
+  }
+  return ormInstance;
+}
+
+export default getOrm;

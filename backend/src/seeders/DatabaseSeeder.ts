@@ -14,9 +14,8 @@ export class DatabaseSeeder extends Seeder {
     }
 
     // Create organization
-    const org = new Organization();
-    org.name = "Chen Shui Clinic";
-    await em.persistAndFlush([org]);
+    const org = new Organization("Chen Shui Clinic");
+    await em.persistAndFlush(org);
 
     console.log("Database seeded successfully!");
   }

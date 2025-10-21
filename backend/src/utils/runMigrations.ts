@@ -59,7 +59,7 @@ export async function runMigrations(
 
     if (runSeeders) {
       console.log("Running database seeders...");
-      const { DatabaseSeeder } = await import("../seeders/DatabaseSeeder");
+      const { DatabaseSeeder } = await import("../seeders/DatabaseSeeder.js");
       await orm.seeder.seed(DatabaseSeeder);
       console.log("Seeders completed");
     }

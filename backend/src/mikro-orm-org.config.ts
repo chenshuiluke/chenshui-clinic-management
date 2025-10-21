@@ -1,5 +1,4 @@
 import { defineConfig } from "@mikro-orm/postgresql";
-import { TsMorphMetadataProvider } from "@mikro-orm/reflection";
 import { Migrator } from "@mikro-orm/migrations";
 
 const config = defineConfig({
@@ -21,8 +20,6 @@ const config = defineConfig({
 
   entities: ["./dist/entities/**/*.js"],
   entitiesTs: ["./src/entities/**/*.ts"],
-
-  metadataProvider: TsMorphMetadataProvider,
 
   // Enable debug mode to log SQL queries
   debug: process.env.NODE_ENV !== "production",

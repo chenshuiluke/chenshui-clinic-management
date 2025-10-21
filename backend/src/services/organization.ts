@@ -1,8 +1,3 @@
-import {
-  SecretsManagerClient,
-  CreateSecretCommand,
-  DeleteSecretCommand,
-} from "@aws-sdk/client-secrets-manager";
 import { Client } from "pg";
 import {
   getOrgDbName,
@@ -10,24 +5,7 @@ import {
   getOrgSecretName,
 } from "../utils/organization";
 import format from "pg-format";
-
-// Allow injection of mock clients for testing
-let secretsClient: SecretsManagerClient;
-
-// Initialize the secrets client
-const getSecretsClient = (): SecretsManagerClient => {
-  if (!secretsClient) {
-    secretsClient = new SecretsManagerClient({
-      region: process.env.AWS_REGION || "us-east-1",
-    });
-  }
-  return secretsClient;
-};
-
-// Allow injection of a mock client for testing
-export const setSecretsClient = (client: SecretsManagerClient): void => {
-  secretsClient = client;
-};
+import { secretsManagerService } from "./secrets-manager.service";
 
 // Generate a random password
 const generatePassword = (length: number = 16): string => {
@@ -158,8 +136,7 @@ export const createOrganizationDb = async (orgName: string) => {
   };
 
   try {
-    const secretsClient = getSecretsClient();
-    await secretsClient.send(new CreateSecretCommand(createSecretParams));
+    await secretsManagerService.createSecret(createSecretParams);
     console.log(`Secret created successfully: ${secretName}`);
   } catch (error) {
     console.error("Error creating secret in AWS Secrets Manager:", error);
@@ -189,13 +166,10 @@ export const deleteOrganizationDb = async (orgName: string) => {
     // Delete the secret
     try {
       console.log(`Deleting secret from AWS Secrets Manager: ${secretName}`);
-      const client = getSecretsClient();
-      await client.send(
-        new DeleteSecretCommand({
-          SecretId: secretName,
-          ForceDeleteWithoutRecovery: true,
-        }),
-      );
+      await secretsManagerService.deleteSecret({
+        SecretId: secretName,
+        ForceDeleteWithoutRecovery: true,
+      });
       console.log(`Secret deleted successfully: ${secretName}`);
     } catch (secretError) {
       console.error(`Failed to delete secret ${secretName}:`, secretError);
