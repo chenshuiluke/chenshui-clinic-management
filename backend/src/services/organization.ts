@@ -9,6 +9,12 @@ import { secretsManagerService } from "./secrets-manager.service";
 
 // Generate a random password
 const generatePassword = (length: number = 16): string => {
+  if (
+    process.env.NODE_ENV === "development" ||
+    process.env.NODE_ENV === "test"
+  ) {
+    return "testpassword";
+  }
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
   let password = "";
@@ -53,7 +59,8 @@ export const createOrganizationDb = async (orgName: string) => {
         ? { rejectUnauthorized: false }
         : false,
   };
-  // Step 1: Create database and user
+
+  // Step 1: Create database and user with proper isolation
   const client = new Client(masterConnection);
   try {
     await client.connect();
@@ -61,18 +68,51 @@ export const createOrganizationDb = async (orgName: string) => {
     // Create the new database
     console.log(`Creating database: ${dbName}`);
     await client.query(`CREATE DATABASE "${dbName}"`);
-
+    await client.query(`REVOKE CONNECT ON DATABASE "${dbName}" FROM PUBLIC`);
     // Create the new user with a secure password
     console.log(`Creating user: ${dbUser}`);
     await client.query(
       format("CREATE USER %I WITH PASSWORD %L", dbUser, dbPassword),
     );
 
-    // Grant necessary permissions to the user for their database only
-    console.log(`Granting permissions to ${dbUser} for database ${dbName}`);
+    // Revoke default permissions to improve isolation
+    console.log(`Setting up proper isolation for ${dbUser}`);
+
+    // Revoke any default CONNECT permissions the user might have
+    // Get list of all databases and revoke CONNECT from all except the org's database
+    const dbListResult = await client.query(
+      `SELECT datname FROM pg_database WHERE datistemplate = false AND datname != $1`,
+      [dbName],
+    );
+
+    for (const row of dbListResult.rows) {
+      const otherDbName = row.datname;
+      try {
+        await client.query(
+          `REVOKE CONNECT ON DATABASE "${otherDbName}" FROM "${dbUser}"`,
+        );
+      } catch (revokeError) {
+        // It's okay if revoke fails - user might not have had permission anyway
+        console.log(
+          `Note: Could not revoke CONNECT on ${otherDbName} from ${dbUser} (expected if no permission existed)`,
+        );
+      }
+    }
+
+    // Now grant CONNECT permission to the organization's database
+    console.log(
+      `Granting connect permission to ${dbUser} for database ${dbName}`,
+    );
     await client.query(`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`);
-    await client.query(`GRANT USAGE ON SCHEMA public TO "${dbUser}"`);
-    await client.query(`GRANT CREATE ON SCHEMA public TO "${dbUser}"`);
+
+    // Ensure the user cannot create new databases
+    await client.query(`ALTER USER "${dbUser}" NOCREATEDB`);
+
+    // Ensure the user cannot create new roles
+    await client.query(`ALTER USER "${dbUser}" NOCREATEROLE`);
+
+    // Ensure the user is not a superuser
+    await client.query(`ALTER USER "${dbUser}" NOSUPERUSER`);
 
     console.log(
       `Database and user created successfully for organization: ${orgName}`,
@@ -86,7 +126,7 @@ export const createOrganizationDb = async (orgName: string) => {
     await client.end();
   }
 
-  // Step 2: Grant privileges on the new database
+  // Step 2: Connect to the new database and set schema ownership
   const orgDbConnection = {
     ...masterConnection,
     database: dbName,
@@ -96,22 +136,46 @@ export const createOrganizationDb = async (orgName: string) => {
   try {
     await orgClient.connect();
 
-    // Grant all privileges on the new database to the user
+    // Make the new user the owner of the public schema
+    console.log(`Setting ${dbUser} as owner of public schema in ${dbName}`);
+    await orgClient.query(`ALTER SCHEMA public OWNER TO "${dbUser}"`);
+
+    // Grant all privileges on the database to the user (but only this database)
     await orgClient.query(
       `GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`,
     );
 
-    console.log(`Privileges granted successfully for ${dbUser}`);
+    // Grant all privileges on all tables in public schema
+    await orgClient.query(
+      `GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "${dbUser}"`,
+    );
+
+    // Grant all privileges on all sequences in public schema
+    await orgClient.query(
+      `GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "${dbUser}"`,
+    );
+
+    // Set default privileges for future objects
+    await orgClient.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "${dbUser}"`,
+    );
+    await orgClient.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "${dbUser}"`,
+    );
+
+    console.log(
+      `Schema ownership and privileges granted successfully for ${dbUser}`,
+    );
   } catch (error) {
-    console.error(`Error granting privileges:`, error);
+    console.error(`Error setting schema ownership:`, error);
     throw new Error(
-      `Failed to grant privileges: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to set schema ownership: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   } finally {
     await orgClient.end();
   }
 
-  // Step 3: Create secret in AWS Secrets Manager with the database credentials
+  // Create secret in secrets manager
   console.log(`Creating secret in AWS Secrets Manager: ${secretName}`);
 
   const secretValue = {
@@ -203,7 +267,7 @@ export const deleteOrganizationDb = async (orgName: string) => {
 
         // Drop the database
         console.log(`Dropping database: ${dbName}`);
-        await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+        await client.query(`DROP DATABASE IF EXISTS "${dbName}" WITH(FORCE)`);
 
         // Drop the user
         console.log(`Dropping user: ${dbUser}`);

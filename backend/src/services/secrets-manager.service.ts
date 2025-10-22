@@ -2,8 +2,10 @@ import {
   SecretsManagerClient,
   CreateSecretCommand,
   DeleteSecretCommand,
+  GetSecretValueCommand,
   CreateSecretCommandInput,
   DeleteSecretCommandInput,
+  GetSecretValueCommandInput,
 } from "@aws-sdk/client-secrets-manager";
 
 class SecretsManagerService {
@@ -55,6 +57,24 @@ class SecretsManagerService {
           Name: command.input.SecretId,
           DeletionDate: new Date(),
         };
+      } else if (command instanceof GetSecretValueCommand) {
+        console.log(
+          `[SecretsManager Mock] GetSecretValue called with id: ${command.input.SecretId}`,
+        );
+        // Return a mock secret value with typical database credentials structure
+        return {
+          ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.SecretId}`,
+          Name: command.input.SecretId,
+          SecretString: JSON.stringify({
+            username: "mock_user",
+            password: "mock_password",
+            engine: "postgres",
+            host: process.env.DB_HOST || "localhost",
+            port: parseInt(process.env.DB_PORT),
+            dbname: "mock_db",
+          }),
+          VersionId: "mock-version-id",
+        };
       }
       return originalSend(command);
     };
@@ -69,6 +89,11 @@ class SecretsManagerService {
 
   async deleteSecret(params: DeleteSecretCommandInput) {
     const command = new DeleteSecretCommand(params);
+    return this.client.send(command);
+  }
+
+  async getSecretValue(params: GetSecretValueCommandInput) {
+    const command = new GetSecretValueCommand(params);
     return this.client.send(command);
   }
 

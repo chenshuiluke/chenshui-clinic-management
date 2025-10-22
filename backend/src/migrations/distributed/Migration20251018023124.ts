@@ -25,9 +25,6 @@ export class Migration20251018023124 extends Migration {
     );
 
     this.addSql(
-      `alter table "organization_user" add constraint "organization_user_organization_id_foreign" foreign key ("organization_id") references "organization" ("id") on update cascade;`,
-    );
-    this.addSql(
       `alter table "organization_user" add constraint "organization_user_doctor_profile_id_foreign" foreign key ("doctor_profile_id") references "doctor_profile" ("id") on update cascade on delete set null;`,
     );
     this.addSql(
@@ -39,14 +36,6 @@ export class Migration20251018023124 extends Migration {
           CHECK (
             (patient_profile_id IS NOT NULL AND doctor_profile_id IS NULL) OR
             (patient_profile_id IS NULL AND doctor_profile_id IS NOT NULL) OR
-            (patient_profile_id IS NULL AND doctor_profile_id IS NULL)`);
-
-    this.addSql(
-      `alter table "organization_user" drop constraint "organization_user_organization_id_foreign";`,
-    );
-
-    this.addSql(
-      `alter table "organization_user" drop column "organization_id";`,
-    );
+            (patient_profile_id IS NULL AND doctor_profile_id IS NULL))`);
   }
 }

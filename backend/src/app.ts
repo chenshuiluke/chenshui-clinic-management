@@ -3,13 +3,17 @@ import { MikroORM } from "@mikro-orm/postgresql";
 import express, { Request, Response, NextFunction } from "express";
 import dotenv from "dotenv";
 
-import { runMigrations } from "./utils/runMigrations";
+import {
+  runMigrations,
+  runMigrationsForDistributedDbs,
+} from "./utils/migrations";
 import OrganizationRouter from "./routes/organization";
 import AuthRouter from "./routes/auth";
 import { authenticate } from "./middleware/auth";
 import { orgContext } from "./middleware/org";
 import { getOrm } from "./db/centralized-db";
 import { closeAllOrgConnections } from "./db/organization-db";
+import Organization from "./entities/central/organization";
 
 export async function createApp(orm: MikroORM): Promise<express.Application> {
   const app = express();
@@ -37,14 +41,15 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
 
 export async function bootstrap(port = 3000) {
   dotenv.config();
-  const orm = await getOrm();
-  await runMigrations(orm);
-
-  const app = await createApp(orm);
+  const centralOrm = await getOrm();
+  await runMigrations(centralOrm);
+  const existingOrgs = await centralOrm.em.fork().find(Organization, {});
+  await runMigrationsForDistributedDbs(existingOrgs, false);
+  const app = await createApp(centralOrm);
 
   process.on("SIGTERM", async () => {
     await closeAllOrgConnections();
-    await orm.close();
+    await centralOrm.close();
     process.exit(0);
   });
 

@@ -1,5 +1,5 @@
 import { MikroORM, EntityManager } from "@mikro-orm/postgresql";
-import orgConfig from "../mikro-orm-org.config";
+import getOrgConfig from "../mikro-orm-org.config";
 import { getOrgDbName } from "../utils/organization";
 
 interface CachedOrgOrm {
@@ -80,8 +80,7 @@ export async function getOrgOrm(orgName: string): Promise<MikroORM> {
     `Creating new ORM instance for organization: ${orgName} (database: ${dbName})`,
   );
   const orm = await MikroORM.init({
-    ...orgConfig,
-    dbName: dbName,
+    ...(await getOrgConfig(orgName)),
   });
 
   // Cache it with timestamp

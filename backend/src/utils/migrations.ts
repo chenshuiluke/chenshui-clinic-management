@@ -1,18 +1,12 @@
 import { MikroORM } from "@mikro-orm/postgresql";
+import Organization from "../entities/central/organization.js";
+import { getOrgOrm } from "../db/organization-db.js";
 
+import { DatabaseSeeder } from "../seeders/DatabaseSeeder.js";
 // PostgreSQL Advisory Lock ID for migrations
 const MIGRATION_LOCK_ID = 123456789;
 
-/**
- * Runs database migrations with distributed locking to prevent
- * concurrent execution across multiple instances.
- *
- * Uses PostgreSQL advisory locks which are automatically released
- * when the connection closes.
- *
- * @param orm - The MikroORM instance
- * @param runSeeders - Whether to run seeders after migrations
- */
+// Runs database migrations with distributed locking to preventconcurrent execution across multiple instances.
 export async function runMigrations(
   orm: MikroORM,
   runSeeders: boolean = true,
@@ -58,8 +52,10 @@ export async function runMigrations(
     }
 
     if (runSeeders) {
-      console.log("Running database seeders...");
-      const { DatabaseSeeder } = await import("../seeders/DatabaseSeeder.js");
+      console.log(
+        "Running database seeders for organization",
+        orm.config.getAll().dbName,
+      );
       await orm.seeder.seed(DatabaseSeeder);
       console.log("Seeders completed");
     }
@@ -76,4 +72,21 @@ export async function runMigrations(
       console.error("Failed to release migration lock:", unlockError);
     }
   }
+}
+
+export async function runMigrationsForDistributedDbs(
+  organizations: Organization[],
+  runSeeders: boolean = false,
+) {
+  for (const organization of organizations) {
+    await runMigrationsForSingleDistributedDb(organization, runSeeders);
+  }
+}
+
+export async function runMigrationsForSingleDistributedDb(
+  organization: Organization,
+  runSeeders: boolean = false,
+) {
+  const organizationOrm = await getOrgOrm(organization.name);
+  await runMigrations(organizationOrm, runSeeders);
 }

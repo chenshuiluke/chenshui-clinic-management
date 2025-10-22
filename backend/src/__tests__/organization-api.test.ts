@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
+import { Client } from "pg";
 import Organization from "../entities/central/organization";
 import {
   getApp,
@@ -9,6 +10,8 @@ import {
   createTestUser,
 } from "./fixtures";
 import { jwtService } from "../services/jwt.service";
+import { getOrgDbName, getOrgDbUser } from "../utils/organization";
+import { secretsManagerService } from "../services/secrets-manager.service";
 
 describe("Organization API", () => {
   let app: ReturnType<typeof getApp>;
@@ -370,6 +373,233 @@ describe("Organization API", () => {
       expect(response.body.name).to.equal(longName);
       expect(response.body.database.dbName).to.have.lengthOf.below(200);
     });
+  });
 
+  describe("Database Connectivity Tests", () => {
+    it("should test database connectivity for newly created organization", async () => {
+      const orgName = "Connectivity Test Clinic";
+
+      // Create the organization
+      const response = await request(app)
+        .post("/organizations")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: orgName })
+        .expect(201);
+
+      const dbName = response.body.database.dbName;
+      const dbUser = getOrgDbUser(orgName);
+
+      // Get main database credentials
+      const masterDbHost = process.env.DB_HOST;
+      const masterDbPort = process.env.DB_PORT;
+      const masterDbUser = process.env.DB_USER;
+      const masterDbPassword = process.env.DB_PASSWORD;
+
+      // Verify database exists
+      const masterClient = new Client({
+        host: masterDbHost,
+        port: parseInt(masterDbPort),
+        user: masterDbUser,
+        password: masterDbPassword,
+        database: process.env.DB_NAME,
+        ssl: false,
+      });
+
+      try {
+        await masterClient.connect();
+
+        // Check if database exists
+        const dbExistsQuery = await masterClient.query(
+          `SELECT datname FROM pg_database WHERE datname = $1`,
+          [dbName],
+        );
+
+        expect(dbExistsQuery.rows).to.have.lengthOf(1);
+        expect(dbExistsQuery.rows[0].datname).to.equal(dbName);
+
+        // Check if user exists
+        const userExistsQuery = await masterClient.query(
+          `SELECT usename FROM pg_user WHERE usename = $1`,
+          [dbUser],
+        );
+
+        expect(userExistsQuery.rows).to.have.lengthOf(1);
+        expect(userExistsQuery.rows[0].usename).to.equal(dbUser);
+      } finally {
+        await masterClient.end();
+      }
+
+      // Verify new user can connect to the database
+      const userClient = new Client({
+        host: masterDbHost,
+        port: parseInt(masterDbPort),
+        user: dbUser,
+        password: "testpassword",
+        database: dbName,
+        ssl: false,
+      });
+
+      try {
+        await userClient.connect();
+
+        // Test basic query execution
+        const testQuery = await userClient.query("SELECT 1 as test");
+        expect(testQuery.rows).to.have.lengthOf(1);
+        expect(testQuery.rows[0].test).to.equal(1);
+
+        // Verify the user can create tables (has ownership of public schema)
+        await userClient.query(`
+          CREATE TABLE IF NOT EXISTS test_table (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100)
+          )
+        `);
+
+        // Verify table was created
+        const tableExistsQuery = await userClient.query(`
+          SELECT table_name FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'test_table'
+        `);
+
+        expect(tableExistsQuery.rows).to.have.lengthOf(1);
+
+        // Test user can insert data
+        await userClient.query("INSERT INTO test_table (name) VALUES ($1)", [
+          "test_value",
+        ]);
+
+        // Test user can select data
+        const selectQuery = await userClient.query(
+          "SELECT * FROM test_table WHERE name = $1",
+          ["test_value"],
+        );
+
+        expect(selectQuery.rows).to.have.lengthOf(1);
+        expect(selectQuery.rows[0].name).to.equal("test_value");
+
+        // Clean up test table
+        await userClient.query("DROP TABLE IF EXISTS test_table");
+      } catch (error) {
+        throw new Error(
+          `User connectivity test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      } finally {
+        await userClient.end();
+      }
+    });
+
+    it("should verify user permissions on newly created database", async () => {
+      const orgName = "Permissions Test Clinic";
+
+      // Create the organization
+      const response = await request(app)
+        .post("/organizations")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: orgName })
+        .expect(201);
+
+      const dbName = response.body.database.dbName;
+      const dbUser = getOrgDbUser(orgName);
+
+      // Get database credentials
+      const masterDbHost = process.env.DB_HOST;
+      const masterDbPort = process.env.DB_PORT;
+      const masterDbUser = process.env.DB_USER;
+      const masterDbPassword = process.env.DB_PASSWORD;
+
+      const masterClient = new Client({
+        host: masterDbHost,
+        port: parseInt(masterDbPort),
+        user: masterDbUser,
+        password: masterDbPassword,
+        database: dbName,
+        ssl: false,
+      });
+
+      try {
+        await masterClient.connect();
+
+        // Check user has proper privileges
+        const privilegesQuery = await masterClient.query(
+          `
+          SELECT
+            has_database_privilege($1, $2, 'CONNECT') as can_connect,
+            has_database_privilege($1, $2, 'CREATE') as can_create,
+            has_database_privilege($1, $2, 'TEMP') as can_temp
+        `,
+          [dbUser, dbName],
+        );
+
+        expect(privilegesQuery.rows[0].can_connect).to.be.true;
+        expect(privilegesQuery.rows[0].can_create).to.be.true;
+
+        // Check schema ownership
+        const schemaOwnerQuery = await masterClient.query(`
+          SELECT nspowner::regrole as owner
+          FROM pg_namespace
+          WHERE nspname = 'public'
+        `);
+
+        expect(schemaOwnerQuery.rows[0].owner).to.equal(dbUser);
+      } finally {
+        await masterClient.end();
+      }
+    });
+
+    it("should test user isolation between databases", async () => {
+      // Create two organizations
+      const org1Response = await request(app)
+        .post("/organizations")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Isolation Test 1" })
+        .expect(201);
+
+      const org2Response = await request(app)
+        .post("/organizations")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ name: "Isolation Test 2" })
+        .expect(201);
+
+      const db1Name = org1Response.body.database.dbName;
+      const db2Name = org2Response.body.database.dbName;
+      const user1 = getOrgDbUser("Isolation Test 1");
+      const user2 = getOrgDbUser("Isolation Test 2");
+
+      const masterDbHost = process.env.DB_HOST;
+      const masterDbPort = process.env.DB_PORT;
+
+      // Test that user1 cannot access db2
+      const crossClient = new Client({
+        host: masterDbHost,
+        port: parseInt(masterDbPort),
+        user: user1,
+        password: "testpassword",
+        database: db2Name,
+        ssl: false,
+      });
+
+      try {
+        await crossClient.connect();
+        // If connection succeeds, it's a test failure
+        expect.fail("User1 should not be able to connect to DB2");
+      } catch (error) {
+        // This is expected - user1 should not have access to db2
+        expect(error).to.exist;
+        if (error instanceof Error) {
+          expect(error.message).to.satisfy(
+            (msg: string) =>
+              msg.includes("permission denied") ||
+              msg.includes("authentication failed") ||
+              msg.includes("password authentication failed"),
+          );
+        }
+      } finally {
+        try {
+          await crossClient.end();
+        } catch {
+          // Ignore cleanup errors for failed connections
+        }
+      }
+    });
   });
 });

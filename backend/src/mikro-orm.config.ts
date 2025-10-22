@@ -2,8 +2,11 @@ import { defineConfig } from "@mikro-orm/postgresql";
 import { Migrator } from "@mikro-orm/migrations";
 
 const config = defineConfig({
+  logger: (message: string) => {
+    console.log("central_log", message);
+  },
   host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432"),
+  port: parseInt(process.env.DB_PORT),
   user: process.env.DB_USER || "clinic_user",
   password: process.env.DB_PASSWORD || "clinic_password",
   dbName: process.env.DB_NAME || "clinic_db",
