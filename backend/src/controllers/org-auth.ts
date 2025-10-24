@@ -68,6 +68,17 @@ export class OrgAuthController {
         return;
       }
 
+      // Validate that the token's orgName matches the current organization context
+      if (!('orgName' in decoded)) {
+        res.status(401).json({ error: "Invalid refresh token: organization token required" });
+        return;
+      }
+
+      if (decoded.orgName !== req.organization) {
+        res.status(401).json({ error: "Invalid refresh token: organization mismatch" });
+        return;
+      }
+
       const em = RequestContext.getEntityManager()!;
       const user = await em.findOne(OrganizationUser, { id: decoded.userId });
 

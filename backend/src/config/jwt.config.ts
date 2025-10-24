@@ -31,7 +31,7 @@ export interface DecodedOrgJWT extends OrgJWTPayload {
 declare global {
   namespace Express {
     interface Request {
-      user?: DecodedJWT;
+      user?: DecodedJWT | DecodedOrgJWT;
     }
   }
 }

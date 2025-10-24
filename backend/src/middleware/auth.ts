@@ -25,6 +25,22 @@ const verifyAndAttachUser = async (
     }
 
     const decoded = jwtService.verifyAccessToken(token);
+
+    // Enforce organization scoping when req.organization is set
+    if (req.organization) {
+      // Check if the token contains orgName
+      if (!('orgName' in decoded)) {
+        res.status(401).json({ error: 'Organization token required' });
+        return false;
+      }
+
+      // Verify that the token's orgName matches the current organization context
+      if (decoded.orgName !== req.organization) {
+        res.status(401).json({ error: 'Token organization mismatch' });
+        return false;
+      }
+    }
+
     req.user = decoded;
     return true;
   } catch (error) {
