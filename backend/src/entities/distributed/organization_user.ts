@@ -33,6 +33,9 @@ export default class OrganizationUser extends BaseEntity {
   @Property({ type: "string" })
   lastName!: string;
 
+  @Property({ type: "text", nullable: true })
+  refreshToken?: string | null;
+
   @OneToOne({ nullable: true, type: DoctorProfile })
   doctorProfile?: DoctorProfile;
 
