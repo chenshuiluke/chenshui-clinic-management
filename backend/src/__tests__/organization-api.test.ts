@@ -398,7 +398,7 @@ describe("Organization API", () => {
       // Verify database exists
       const masterClient = new Client({
         host: masterDbHost,
-        port: parseInt(masterDbPort),
+        port: parseInt(masterDbPort || "5432"),
         user: masterDbUser,
         password: masterDbPassword,
         database: process.env.DB_NAME,
@@ -432,7 +432,7 @@ describe("Organization API", () => {
       // Verify new user can connect to the database
       const userClient = new Client({
         host: masterDbHost,
-        port: parseInt(masterDbPort),
+        port: parseInt(masterDbPort || "5432"),
         user: dbUser,
         password: "testpassword",
         database: dbName,
@@ -509,7 +509,7 @@ describe("Organization API", () => {
 
       const masterClient = new Client({
         host: masterDbHost,
-        port: parseInt(masterDbPort),
+        port: parseInt(masterDbPort || "5432"),
         user: masterDbUser,
         password: masterDbPassword,
         database: dbName,
@@ -571,7 +571,7 @@ describe("Organization API", () => {
       // Test that user1 cannot access db2
       const crossClient = new Client({
         host: masterDbHost,
-        port: parseInt(masterDbPort),
+        port: parseInt(masterDbPort || "5432"),
         user: user1,
         password: "testpassword",
         database: db2Name,

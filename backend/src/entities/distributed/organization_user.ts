@@ -11,6 +11,14 @@ import BaseEntity from "../base";
 import Organization from "../central/organization";
 import PatientProfile from "./patient_profile";
 import DoctorProfile from "./doctor_profile";
+import AdminProfile from "./admin_profile";
+
+export enum OrganizationUserRole {
+  ADMIN = "ADMIN",
+  DOCTOR = "DOCTOR",
+  PATIENT = "PATIENT",
+}
+
 @Entity()
 export default class OrganizationUser extends BaseEntity {
   @Property({ type: "string" })
@@ -31,13 +39,35 @@ export default class OrganizationUser extends BaseEntity {
   @OneToOne({ nullable: true, type: PatientProfile })
   patientProfile?: PatientProfile;
 
+  @OneToOne({ nullable: true, type: AdminProfile })
+  adminProfile?: AdminProfile;
+
   @BeforeCreate()
   @BeforeUpdate()
   validateOnlyOneRole() {
-    if (this.patientProfile && this.doctorProfile) {
+    const profileCount = [
+      this.patientProfile,
+      this.doctorProfile,
+      this.adminProfile,
+    ].filter((profile) => profile !== undefined && profile !== null).length;
+
+    if (profileCount !== 1) {
       throw new ValidationError(
-        "User cannot have both patient and doctor profiles. Please set only one.",
+        "User must have exactly one profile (admin, doctor, or patient).",
       );
     }
+  }
+
+  getRole(): OrganizationUserRole {
+    if (this.adminProfile) {
+      return OrganizationUserRole.ADMIN;
+    }
+    if (this.doctorProfile) {
+      return OrganizationUserRole.DOCTOR;
+    }
+    if (this.patientProfile) {
+      return OrganizationUserRole.PATIENT;
+    }
+    throw new Error("User must have exactly one profile (admin, doctor, or patient).");
   }
 }

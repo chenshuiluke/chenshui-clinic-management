@@ -70,7 +70,7 @@ class SecretsManagerService {
             password: "mock_password",
             engine: "postgres",
             host: process.env.DB_HOST || "localhost",
-            port: parseInt(process.env.DB_PORT),
+            port: parseInt(process.env.DB_PORT || "5432"),
             dbname: "mock_db",
           }),
           VersionId: "mock-version-id",
