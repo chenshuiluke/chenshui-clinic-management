@@ -21,7 +21,7 @@ export enum OrganizationUserRole {
 
 @Entity()
 export default class OrganizationUser extends BaseEntity {
-  @Property({ type: "string" })
+  @Property({ type: "string", unique: true })
   email!: string;
 
   @Property({ type: "string" })

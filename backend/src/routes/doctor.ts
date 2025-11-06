@@ -6,7 +6,7 @@ import { createDoctorSchema } from "../validators/doctor";
 
 const router = Router();
 
-router.post("/", requireAdmin, validateRequest(createDoctorSchema), (req, res) =>
+router.post("/", validateRequest(createDoctorSchema), requireAdmin, (req, res) =>
   doctorController.createDoctor(req, res)
 );
 

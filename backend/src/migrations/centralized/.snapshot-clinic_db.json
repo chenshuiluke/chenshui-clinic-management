@@ -17,23 +17,23 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamptz",
+          "type": "date",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
+          "nullable": false,
+          "length": 0,
+          "mappedType": "date"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamptz",
+          "type": "date",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
+          "nullable": false,
+          "length": 0,
+          "mappedType": "date"
         },
         "name": {
           "name": "name",
@@ -87,23 +87,23 @@
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamptz",
+          "type": "date",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
+          "nullable": false,
+          "length": 0,
+          "mappedType": "date"
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamptz",
+          "type": "date",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
+          "nullable": false,
+          "length": 0,
+          "mappedType": "date"
         },
         "email": {
           "name": "email",

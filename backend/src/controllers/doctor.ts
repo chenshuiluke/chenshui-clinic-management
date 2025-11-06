@@ -31,17 +31,11 @@ class DoctorController extends BaseController {
       const hashedPassword = await jwtService.hashPassword(password);
 
       // Create DoctorProfile entity
-      const doctorProfileData: any = {
+      const doctorProfile = em.create(DoctorProfile, {
         specialization,
         licenseNumber,
-      };
-
-      // Only include phoneNumber if it's provided
-      if (phoneNumber) {
-        doctorProfileData.phoneNumber = phoneNumber;
-      }
-
-      const doctorProfile = em.create(DoctorProfile, doctorProfileData);
+        ...(phoneNumber && { phoneNumber }),
+      });
 
       // Create OrganizationUser entity with doctorProfile
       const organizationUser = em.create(OrganizationUser, {
@@ -65,7 +59,7 @@ class DoctorController extends BaseController {
         specialization,
         licenseNumber,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create doctor user:", error);
       res.status(500).json({ error: "Failed to create doctor user" });
     }
