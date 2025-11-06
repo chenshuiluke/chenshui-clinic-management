@@ -10,6 +10,7 @@ import {
 import OrganizationRouter from "./routes/organization";
 import AuthRouter from "./routes/auth";
 import OrgAuthRouter from "./routes/org-auth";
+import DoctorRouter from "./routes/doctor";
 import { authenticate } from "./middleware/auth";
 import { orgContext } from "./middleware/org";
 import { getOrm } from "./db/centralized-db";
@@ -39,6 +40,7 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
 
   // Organization-specific auth
   app.use("/:orgName/auth", OrgAuthRouter);
+  app.use("/:orgName/doctors", DoctorRouter);
 
   return app;
 }
