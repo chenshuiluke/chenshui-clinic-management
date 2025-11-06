@@ -2,7 +2,7 @@ import { expect } from "chai";
 import request from "supertest";
 import { describe, it, beforeEach } from "mocha";
 import { getApp, getOrm } from "./fixtures";
-import { jwtService } from "../services/jwt.service";
+import jwtService from "../services/jwt.service";
 import User from "../entities/central/user";
 import { is } from "zod/v4/locales";
 

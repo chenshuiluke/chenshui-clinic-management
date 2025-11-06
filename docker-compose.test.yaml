@@ -60,7 +60,7 @@ services:
         condition: service_healthy
       sqs:
         condition: service_healthy
-    command: sh -c "npm install && npm run test"
+    command: sh -c "npm install && npm run typecheck && npm run test"
 
   # Test Watcher Service - Watch for changes
   backend-test-watch:

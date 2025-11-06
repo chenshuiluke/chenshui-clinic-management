@@ -5,6 +5,11 @@ import {
   createOrganizationDb,
   deleteOrganizationDb,
 } from "../services/organization";
+import { getOrgEm } from "../db/organization-db";
+import OrganizationUser from "../entities/distributed/organization_user";
+import AdminProfile from "../entities/distributed/admin_profile";
+import jwtService from "../services/jwt.service";
+import { CreateAdminUserDto, CreateOrganizationDto, OrgIdParam } from "../validators/organization";
 
 export default class OrganizationController extends BaseController {
   create = async (req: Request, res: Response) => {
@@ -92,6 +97,62 @@ export default class OrganizationController extends BaseController {
     } catch (error) {
       console.log(error);
       res.status(500).json({ error: "Failed to fetch organizations" });
+    }
+  };
+
+  createAdminUser = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const orgId = parseInt(req.params.orgId!);
+      const { email, password, firstName, lastName } = req.body;
+
+      // Find the organization in the central database
+      const organization = await this.em.findOne(Organization, { id: orgId! });
+      if (!organization) {
+        res.status(404).json({ error: "Organization not found" });
+        return;
+      }
+
+      // Get the organization-specific database EntityManager
+      const orgEm = await getOrgEm(organization.name);
+
+      // Check if user with this email already exists in the organization database
+      const existingUser = await orgEm.findOne(OrganizationUser, { email });
+      if (existingUser) {
+        res.status(409).json({
+          error: "User with this email already exists in the organization",
+        });
+        return;
+      }
+
+      // Hash the password
+      const hashedPassword = await jwtService.hashPassword(password);
+
+      // Create AdminProfile entity
+      const adminProfile = orgEm.create(AdminProfile, {});
+
+      // Create OrganizationUser entity with adminProfile
+      const organizationUser = orgEm.create(OrganizationUser, {
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        adminProfile,
+      });
+
+      // Persist both entities to the organization database
+      await orgEm.persistAndFlush([adminProfile, organizationUser]);
+
+      // Return the created user information
+      res.status(201).json({
+        id: organizationUser.id,
+        email: organizationUser.email,
+        firstName: organizationUser.firstName,
+        lastName: organizationUser.lastName,
+        role: "admin",
+      });
+    } catch (error) {
+      console.error("Failed to create admin user:", error);
+      res.status(500).json({ error: "Failed to create admin user" });
     }
   };
 }

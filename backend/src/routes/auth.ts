@@ -7,6 +7,10 @@ import {
   registerSchema,
   refreshTokenSchema,
   verifyUserSchema,
+  LoginDto,
+  RegisterDto,
+  RefreshTokenDto,
+  VerifyUserDto,
 } from "../validators/auth";
 
 const router = Router();

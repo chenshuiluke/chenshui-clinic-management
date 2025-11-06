@@ -2,7 +2,7 @@ import { Router } from "express";
 import orgAuthController from "../controllers/org-auth";
 import { validateRequest } from "../middleware/validator";
 import { authenticate } from "../middleware/auth";
-import { orgLoginSchema, orgRefreshTokenSchema } from "../validators/auth";
+import { orgLoginSchema, orgRefreshTokenSchema, OrgLoginDto, OrgRefreshTokenDto } from "../validators/auth";
 
 const router = Router();
 

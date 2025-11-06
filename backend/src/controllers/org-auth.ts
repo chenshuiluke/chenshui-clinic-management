@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { RequestContext } from "@mikro-orm/core";
 import OrganizationUser from "../entities/distributed/organization_user";
-import { jwtService } from "../services/jwt.service";
+import jwtService from "../services/jwt.service";
 import { OrgJWTPayload } from "../config/jwt.config";
 import { OrgLoginDto, OrgRefreshTokenDto } from "../validators/auth";
 

@@ -11,6 +11,16 @@ docker compose -f docker-compose.yaml -f docker-compose.test.yaml up -d db sqs
 echo "[INFO] Waiting for services to be ready..."
 sleep 10
 
+echo "[INFO] Type-checking TypeScript files..."
+docker compose -f docker-compose.yaml -f docker-compose.test.yaml run --rm backend-test npm run typecheck
+TYPECHECK_EXIT_CODE=$?
+
+if [ $TYPECHECK_EXIT_CODE -ne 0 ]; then
+  echo "[ERROR] Type-checking failed. Fix compilation errors before generating coverage."
+  docker compose -f docker-compose.yaml -f docker-compose.test.yaml down
+  exit $TYPECHECK_EXIT_CODE
+fi
+
 echo "[INFO] Creating coverage directory..."
 mkdir -p backend/coverage
 

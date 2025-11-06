@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { RequestContext } from "@mikro-orm/core";
 import User from "../entities/central/user";
-import { jwtService } from "../services/jwt.service";
+import jwtService from "../services/jwt.service";
 import { JWTPayload } from "../config/jwt.config";
 import {
   LoginDto,

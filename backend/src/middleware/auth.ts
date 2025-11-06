@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { jwtService } from '../services/jwt.service';
+import jwtService from '../services/jwt.service';
 import { RequestContext } from '@mikro-orm/core';
 import OrganizationUser from '../entities/distributed/organization_user';
 

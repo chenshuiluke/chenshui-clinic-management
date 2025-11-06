@@ -9,7 +9,7 @@ import {
   createTestOrganization,
   createTestUser,
 } from "./fixtures";
-import { jwtService } from "../services/jwt.service";
+import jwtService from "../services/jwt.service";
 import { getOrgDbName, getOrgDbUser } from "../utils/organization";
 import { secretsManagerService } from "../services/secrets-manager.service";
 

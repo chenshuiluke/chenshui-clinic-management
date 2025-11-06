@@ -33,3 +33,19 @@ export const createOrganizationResponseSchema = z.object({
 export type CreateOrganizationResponse = z.infer<
   typeof createOrganizationResponseSchema
 >;
+
+export const createAdminUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+});
+
+export type CreateAdminUserDto = z.infer<typeof createAdminUserSchema>;
+
+// Param validation schema
+export const orgIdParamSchema = z.object({
+  orgId: z.coerce.number().int().positive(),
+});
+
+export type OrgIdParam = z.infer<typeof orgIdParamSchema>;
