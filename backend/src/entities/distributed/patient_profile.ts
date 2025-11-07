@@ -3,48 +3,30 @@ import BaseEntity from "../base";
 
 @Entity()
 export default class PatientProfile extends BaseEntity {
-  // @Property()
-  // address!: string;
-  // @Property()
-  // city!: string;
-  // @Property()
-  // state!: string;
-  // @Property()
-  // zip!: string;
-  // @Property()
-  // country!: string;
-  // @Property()
-  // dob!: Date;
-  // @Property()
-  // gender!: string;
-  // @Property()
-  // height!: number;
-  // @Property()
-  // weight!: number;
-  // @Property()
-  // bloodType!: string;
-  // @Property()
-  // allergies!: string[];
-  // @Property()
-  // medications!: string[];
-  // @Property()
-  // insurance!: string;
-  // @Property()
-  // emergencyContactName!: string;
-  // @Property()
-  // emergencyContactPhone!: string;
-  // @Property()
-  // emergencyContactRelationship!: string;
-  // @Property()
-  // notes!: string;
-  // @Property()
-  // status!: string;
-  // @Property()
-  // deletedAt!: Date;
-  // @Property()
-  // createdBy!: string;
-  // @Property()
-  // updatedBy!: string;
-  // @Property()
-  // deletedBy!: string;
+  @Property({ type: 'date' })
+  dateOfBirth!: Date;
+
+  @Property({ type: 'string' })
+  phoneNumber!: string;
+
+  @Property({ type: 'string', nullable: true })
+  address?: string;
+
+  @Property({ type: 'string', nullable: true })
+  emergencyContactName?: string;
+
+  @Property({ type: 'string', nullable: true })
+  emergencyContactPhone?: string;
+
+  @Property({ type: 'string', nullable: true })
+  bloodType?: string;
+
+  @Property({ type: 'string', nullable: true })
+  allergies?: string;
+
+  @Property({ type: 'string', nullable: true })
+  chronicConditions?: string;
+
+  @Property({ type: 'string' })
+  ipAddress!: string;
 }

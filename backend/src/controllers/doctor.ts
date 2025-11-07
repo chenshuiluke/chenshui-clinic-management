@@ -27,17 +27,14 @@ class DoctorController extends BaseController {
         return;
       }
 
-      // Hash the password
       const hashedPassword = await jwtService.hashPassword(password);
 
-      // Create DoctorProfile entity
       const doctorProfile = em.create(DoctorProfile, {
         specialization,
         licenseNumber,
         ...(phoneNumber && { phoneNumber }),
       });
 
-      // Create OrganizationUser entity with doctorProfile
       const organizationUser = em.create(OrganizationUser, {
         email,
         password: hashedPassword,
@@ -46,10 +43,8 @@ class DoctorController extends BaseController {
         doctorProfile,
       });
 
-      // Persist both entities
       await em.persistAndFlush([doctorProfile, organizationUser]);
 
-      // Return the created user information
       res.status(201).json({
         id: organizationUser.id,
         email: organizationUser.email,

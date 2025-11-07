@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "npm run build && node dist/server.js",
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && NODE_OPTIONS='--import tsx --no-warnings' mocha --exit src/__tests__/setup.ts 'src/__tests__/**/*.test.ts'",
