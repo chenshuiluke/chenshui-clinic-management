@@ -11,6 +11,7 @@ import {
 class SecretsManagerService {
   private client: SecretsManagerClient;
   private isMockMode: boolean;
+  private mockSecrets: Set<string> = new Set();
 
   constructor() {
     const env = process.env.NODE_ENV || "development";
@@ -43,18 +44,32 @@ class SecretsManagerService {
         console.log(
           `[SecretsManager Mock] CreateSecret called with name: ${command.input.Name}`,
         );
+        // Check if secret already exists
+        if (command.input.Name && this.mockSecrets.has(command.input.Name)) {
+          const error = new Error(`The operation failed because the secret ${command.input.Name ?? 'unknown'} already exists.`);
+          error.name = 'ResourceExistsException';
+          throw error;
+        }
+        // Add to mock secrets set
+        if (command.input.Name) {
+          this.mockSecrets.add(command.input.Name);
+        }
         return {
           ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.Name}`,
-          Name: command.input.Name,
+          Name: command.input.Name ?? 'unknown',
           VersionId: "mock-version-id",
         };
       } else if (command instanceof DeleteSecretCommand) {
         console.log(
           `[SecretsManager Mock] DeleteSecret called with id: ${command.input.SecretId}`,
         );
+        // Remove from mock secrets set
+        if (command.input.SecretId) {
+          this.mockSecrets.delete(command.input.SecretId);
+        }
         return {
           ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.SecretId}`,
-          Name: command.input.SecretId,
+          Name: command.input.SecretId ?? 'unknown',
           DeletionDate: new Date(),
         };
       } else if (command instanceof GetSecretValueCommand) {
@@ -64,7 +79,7 @@ class SecretsManagerService {
         // Return a mock secret value with typical database credentials structure
         return {
           ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.SecretId}`,
-          Name: command.input.SecretId,
+          Name: command.input.SecretId ?? 'unknown',
           SecretString: JSON.stringify({
             username: "mock_user",
             password: "mock_password",
@@ -103,6 +118,13 @@ class SecretsManagerService {
 
   isMock(): boolean {
     return this.isMockMode;
+  }
+
+  clearMockSecrets(): void {
+    if (this.isMockMode) {
+      console.log('[SecretsManager Mock] Clearing mock secrets set');
+      this.mockSecrets.clear();
+    }
   }
 }
 

@@ -14,3 +14,9 @@ export const bookAppointmentSchema = z.object({
 });
 
 export type BookAppointmentDto = z.infer<typeof bookAppointmentSchema>;
+
+export const appointmentIdParamSchema = z.object({
+  id: z.string().regex(/^\d+$/, 'Appointment ID must be a number')
+});
+
+export type AppointmentIdParam = z.infer<typeof appointmentIdParamSchema>;

@@ -15,7 +15,7 @@ export class Migration20251107051531_AddMissingProfileColumns extends Migration 
 
     // Add missing columns to patient_profile
     this.addSql(
-      `alter table "patient_profile" add column "date_of_birth" date not null default CURRENT_DATE;`,
+      `alter table "patient_profile" add column "date_of_birth" timestamptz not null default CURRENT_TIMESTAMP;`,
     );
     this.addSql(
       `alter table "patient_profile" add column "phone_number" varchar(255) not null default '';`,

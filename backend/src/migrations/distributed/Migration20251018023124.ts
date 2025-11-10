@@ -15,7 +15,7 @@ export class Migration20251018023124 extends Migration {
     );
 
     this.addSql(
-      `create table "organization_user" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null, "organization_id" int not null, "email" varchar(255) not null, "password" varchar(255) not null, "first_name" varchar(255) not null, "last_name" varchar(255) not null, "doctor_profile_id" int null, "patient_profile_id" int null);`,
+      `create table "organization_user" ("id" serial primary key, "created_at" timestamptz null, "updated_at" timestamptz null, "email" varchar(255) not null, "password" varchar(255) not null, "first_name" varchar(255) not null, "last_name" varchar(255) not null, "doctor_profile_id" int null, "patient_profile_id" int null);`,
     );
     this.addSql(
       `alter table "organization_user" add constraint "organization_user_doctor_profile_id_unique" unique ("doctor_profile_id");`,

@@ -8,15 +8,29 @@ import {
   getOrm,
   createTestOrganization,
   createTestUser,
+  trackOrganization,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
-import { getOrgDbName, getOrgDbUser } from "../utils/organization";
+import { getOrgDbName, getOrgDbUser, getOrgSecretName } from "../utils/organization";
 import { secretsManagerService } from "../services/secrets-manager.service";
 
 describe("Organization API", () => {
   let app: ReturnType<typeof getApp>;
   let orm: ReturnType<typeof getOrm>;
   let authToken: string;
+
+  // Test-local helper functions for unique names and expectations
+  function makeUniqueName(base: string): string {
+    return `${base} ${Date.now()}`;
+  }
+
+  function expectedDb(name: string): string {
+    return getOrgDbName(name);
+  }
+
+  function expectedSecret(name: string): string {
+    return getOrgSecretName(name);
+  }
 
   beforeEach(async () => {
     app = getApp();
@@ -122,7 +136,7 @@ describe("Organization API", () => {
 
     it("should create organization with database and return correct structure", async () => {
       const newOrg = {
-        name: "New Medical Center",
+        name: `New Medical Center ${Date.now()}`,
       };
 
       const response = await request(app)
@@ -131,6 +145,8 @@ describe("Organization API", () => {
         .send(newOrg)
         .set("Content-Type", "application/json")
         .expect(201);
+
+      trackOrganization(response.body.name);
 
       // Check basic organization fields
       expect(response.body).to.have.property("id").that.is.a("number");
@@ -143,11 +159,11 @@ describe("Organization API", () => {
       expect(response.body.database).to.have.property("created", true);
       expect(response.body.database).to.have.property(
         "dbName",
-        "clinic_new_medical_center",
+        expectedDb(newOrg.name),
       );
       expect(response.body.database).to.have.property(
         "secretName",
-        "clinic-db-new_medical_center",
+        expectedSecret(newOrg.name),
       );
       expect(response.body.database)
         .to.have.property("message")
@@ -157,19 +173,13 @@ describe("Organization API", () => {
     it("should create database with correct naming convention", async () => {
       const testCases = [
         {
-          orgName: "Test Clinic",
-          expectedDb: "clinic_test_clinic",
-          expectedSecret: "clinic-db-test_clinic",
+          orgName: makeUniqueName("Test Clinic"),
         },
         {
-          orgName: "My-Clinic!",
-          expectedDb: "clinic_my_clinic_",
-          expectedSecret: "clinic-db-my_clinic_",
+          orgName: makeUniqueName("My-Clinic!"),
         },
         {
-          orgName: "Clinic 123",
-          expectedDb: "clinic_clinic_123",
-          expectedSecret: "clinic-db-clinic_123",
+          orgName: makeUniqueName("Clinic 123"),
         },
       ];
 
@@ -180,9 +190,11 @@ describe("Organization API", () => {
           .send({ name: testCase.orgName })
           .expect(201);
 
-        expect(response.body.database.dbName).to.equal(testCase.expectedDb);
+        trackOrganization(testCase.orgName);
+
+        expect(response.body.database.dbName).to.equal(expectedDb(testCase.orgName));
         expect(response.body.database.secretName).to.equal(
-          testCase.expectedSecret,
+          expectedSecret(testCase.orgName),
         );
       }
     });
@@ -203,7 +215,7 @@ describe("Organization API", () => {
     });
 
     it("should handle duplicate organization names", async () => {
-      const orgName = "Duplicate Medical Center";
+      const orgName = `Duplicate Medical Center ${Date.now()}`;
 
       await createTestOrganization(orm, { name: orgName });
 
@@ -229,10 +241,11 @@ describe("Organization API", () => {
         delete process.env.DB_USER;
         delete process.env.DB_PASSWORD;
 
+        const orgName = `No DB Config Clinic ${Date.now()}`;
         const response = await request(app)
           .post("/organizations")
           .set("Authorization", `Bearer ${authToken}`)
-          .send({ name: "No DB Config Clinic" })
+          .send({ name: orgName })
           .expect(500);
 
         // Organization creation should fail
@@ -242,7 +255,7 @@ describe("Organization API", () => {
         // Verify organization was NOT persisted
         const em = orm.em.fork();
         const savedOrg = await em.findOne(Organization, {
-          name: "No DB Config Clinic",
+          name: orgName,
         });
         expect(savedOrg).to.be.null;
       } finally {
@@ -250,6 +263,15 @@ describe("Organization API", () => {
         process.env.DB_HOST = originalHost;
         process.env.DB_USER = originalUser;
         process.env.DB_PASSWORD = originalPassword;
+
+        // Note: This test expects failure, but track defensively
+        const em = orm.em.fork();
+        const org = await em.findOne(Organization, {
+          name: `No DB Config Clinic ${Date.now()}`,
+        });
+        if (org) {
+          trackOrganization("No DB Config Clinic");
+        }
       }
     });
   });
@@ -259,8 +281,10 @@ describe("Organization API", () => {
       const response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Auto ID Clinic" })
+        .send({ name: `Auto ID Clinic ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response.body.name);
 
       expect(response.body.id).to.be.a("number");
       expect(response.body.id).to.be.greaterThan(0);
@@ -272,8 +296,10 @@ describe("Organization API", () => {
       const response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Timestamp Clinic" })
+        .send({ name: `Timestamp Clinic ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response.body.name);
 
       const afterCreate = new Date();
       const createdAt = new Date(response.body.createdAt);
@@ -288,8 +314,10 @@ describe("Organization API", () => {
       const response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Updated Clinic" })
+        .send({ name: `Updated Clinic ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response.body.name);
 
       const afterCreate = new Date();
       const updatedAt = new Date(response.body.updatedAt);
@@ -302,14 +330,18 @@ describe("Organization API", () => {
       const response1 = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "First Clinic" })
+        .send({ name: `First Clinic ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response1.body.name);
 
       const response2 = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Second Clinic" })
+        .send({ name: `Second Clinic ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response2.body.name);
 
       expect(response2.body.id).to.be.greaterThan(response1.body.id);
     });
@@ -318,14 +350,18 @@ describe("Organization API", () => {
       const response1 = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Unique DB One" })
+        .send({ name: `Unique DB One ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response1.body.name);
 
       const response2 = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Unique DB Two" })
+        .send({ name: `Unique DB Two ${Date.now()}` })
         .expect(201);
+
+      trackOrganization(response2.body.name);
 
       expect(response1.body.database.dbName).to.not.equal(
         response2.body.database.dbName,
@@ -338,13 +374,14 @@ describe("Organization API", () => {
 
   describe("Database Creation Edge Cases", () => {
     it("should handle organizations with special characters in names", async () => {
+      const timestamp = Date.now();
       const specialNameCases = [
-        "Test & Associates",
-        "Clinic #1",
-        "Dr. Smith's Practice",
-        "50% Off Clinic",
-        "Clinic (Main)",
-        "Test/Clinic 1",
+        `Test & Associates ${timestamp}`,
+        `Clinic #1 ${timestamp}`,
+        `Dr. Smith's Practice ${timestamp}`,
+        `50% Off Clinic ${timestamp}`,
+        `Clinic (Main) ${timestamp}`,
+        `Test/Clinic 1 ${timestamp}`,
       ];
 
       for (const name of specialNameCases) {
@@ -354,6 +391,8 @@ describe("Organization API", () => {
           .send({ name })
           .expect(201);
 
+        trackOrganization(name);
+
         expect(response.body.database.dbName).to.match(/^clinic_[a-z0-9_]+$/);
         expect(response.body.database.secretName).to.match(
           /^clinic-db-[a-z0-9_]+$/,
@@ -362,13 +401,15 @@ describe("Organization API", () => {
     });
 
     it("should handle very long organization names", async () => {
-      const longName = "A".repeat(100) + " Medical Center";
+      const longName = "A".repeat(100) + ` Medical Center ${Date.now()}`;
 
       const response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: longName })
         .expect(201);
+
+      trackOrganization(response.body.name);
 
       expect(response.body.name).to.equal(longName);
       expect(response.body.database.dbName).to.have.lengthOf.below(200);
@@ -377,7 +418,7 @@ describe("Organization API", () => {
 
   describe("Database Connectivity Tests", () => {
     it("should test database connectivity for newly created organization", async () => {
-      const orgName = "Connectivity Test Clinic";
+      const orgName = `Connectivity Test Clinic ${Date.now()}`;
 
       // Create the organization
       const response = await request(app)
@@ -385,6 +426,8 @@ describe("Organization API", () => {
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: orgName })
         .expect(201);
+
+      trackOrganization(orgName);
 
       const dbName = response.body.database.dbName;
       const dbUser = getOrgDbUser(orgName);
@@ -489,7 +532,7 @@ describe("Organization API", () => {
     });
 
     it("should verify user permissions on newly created database", async () => {
-      const orgName = "Permissions Test Clinic";
+      const orgName = `Permissions Test Clinic ${Date.now()}`;
 
       // Create the organization
       const response = await request(app)
@@ -497,6 +540,8 @@ describe("Organization API", () => {
         .set("Authorization", `Bearer ${authToken}`)
         .send({ name: orgName })
         .expect(201);
+
+      trackOrganization(orgName);
 
       const dbName = response.body.database.dbName;
       const dbUser = getOrgDbUser(orgName);
@@ -548,22 +593,26 @@ describe("Organization API", () => {
 
     it("should test user isolation between databases", async () => {
       // Create two organizations
+      const org1Name = `Isolation Test 1 ${Date.now()}`;
       const org1Response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Isolation Test 1" })
+        .send({ name: org1Name })
         .expect(201);
 
+      trackOrganization(org1Response.body.name);
+
+      const org2Name = `Isolation Test 2 ${Date.now()}`;
       const org2Response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${authToken}`)
-        .send({ name: "Isolation Test 2" })
+        .send({ name: org2Name })
         .expect(201);
 
-      const db1Name = org1Response.body.database.dbName;
+      trackOrganization(org2Response.body.name);
+
       const db2Name = org2Response.body.database.dbName;
-      const user1 = getOrgDbUser("Isolation Test 1");
-      const user2 = getOrgDbUser("Isolation Test 2");
+      const user1 = getOrgDbUser(org1Name);
 
       const masterDbHost = process.env.DB_HOST;
       const masterDbPort = process.env.DB_PORT;

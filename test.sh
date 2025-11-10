@@ -3,8 +3,11 @@
 # Run backend tests once
 # This script starts the necessary infrastructure and runs all tests
 
-echo "Starting test infrastructure..."
-docker compose -f docker-compose.test.yaml up -d db sqs
+echo "Cleaning up any existing test infrastructure..."
+docker compose -f docker-compose.test.yaml down --remove-orphans
+
+echo "Starting fresh test infrastructure..."
+docker compose -f docker-compose.test.yaml up -d --force-recreate --renew-anon-volumes db sqs
 
 echo "Waiting for services to be healthy..."
 sleep 5

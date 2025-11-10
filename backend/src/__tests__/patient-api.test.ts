@@ -9,6 +9,7 @@ import {
   getApp,
   getOrm,
   createTestUser,
+  trackOrganization,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
 import { getOrgEm } from "../db/organization-db";
@@ -42,10 +43,11 @@ describe("Patient API", () => {
     const orgResponse = await request(app)
       .post("/organizations")
       .set("Authorization", `Bearer ${centralAuthToken}`)
-      .send({ name: "Test Hospital" })
+      .send({ name: `Test Hospital Patient ${Date.now()}` })
       .expect(201);
 
     organizationName = orgResponse.body.name;
+    trackOrganization(organizationName);
 
     // Create an admin user in the organization database
     const orgEm = await getOrgEm(organizationName);
@@ -312,10 +314,11 @@ describe("Patient API", () => {
       const org2Response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${centralAuthToken}`)
-        .send({ name: "Another Hospital" })
+        .send({ name: `Another Hospital ${Date.now()}` })
         .expect(201);
 
       const org2Name = org2Response.body.name;
+      trackOrganization(org2Name);
 
       // Register in second organization with same email
       const response2 = await request(app)
@@ -1100,9 +1103,9 @@ describe("Patient API", () => {
       );
 
       expect(savedPatient).to.not.be.null;
-      expect(savedPatient!.patientProfile).to.not.be.undefined;
-      expect(savedPatient!.adminProfile).to.be.undefined;
-      expect(savedPatient!.doctorProfile).to.be.undefined;
+      expect(savedPatient!.patientProfile).to.not.be.null;
+      expect(savedPatient!.adminProfile).to.be.null;
+      expect(savedPatient!.doctorProfile).to.be.null;
     });
 
     it("should parse dateOfBirth as Date object", async () => {

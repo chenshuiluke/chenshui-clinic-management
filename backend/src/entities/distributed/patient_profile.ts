@@ -3,7 +3,7 @@ import BaseEntity from "../base";
 
 @Entity()
 export default class PatientProfile extends BaseEntity {
-  @Property({ type: 'date' })
+  @Property({ type: 'datetime' })
   dateOfBirth!: Date;
 
   @Property({ type: 'string' })

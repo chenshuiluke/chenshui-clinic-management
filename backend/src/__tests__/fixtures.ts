@@ -5,9 +5,15 @@ import { createApp } from "../app";
 import Organization from "../entities/central/organization";
 import User from "../entities/central/user";
 import jwtService from "../services/jwt.service";
+import { deleteOrganizationDb } from "../services/organization";
+import { evictOrgFromCache } from "../db/organization-db";
+import { secretsManagerService } from "../services/secrets-manager.service";
 
 let cachedOrm: MikroORM | null = null;
 let cachedApp: express.Application | null = null;
+
+// Track organizations created during tests for cleanup
+const createdOrganizations = new Set<string>();
 
 /**
  * Initialize test environment and create the api without starting the server
@@ -63,9 +69,41 @@ export function getApp(): express.Application {
 }
 
 /**
+ * Track organization for cleanup
+ */
+export function trackOrganization(orgName: string): void {
+  createdOrganizations.add(orgName);
+}
+
+/**
+ * Clear all organization databases created during tests
+ */
+export async function clearOrganizationDatabases(): Promise<void> {
+  for (const orgName of createdOrganizations) {
+    try {
+      // First evict from cache to close any active connections
+      await evictOrgFromCache(orgName);
+      // Wait for connections to fully close
+      await new Promise(resolve => setTimeout(resolve, 100));
+      // Then delete the database
+      await deleteOrganizationDb(orgName);
+    } catch (error) {
+      console.error(`Failed to delete organization database ${orgName}:`, error);
+    }
+  }
+  createdOrganizations.clear();
+}
+
+/**
  * Clears data from db tables. The deletions must happen in order due to foreign keys
  */
 export async function clearDatabase(orm: MikroORM): Promise<void> {
+  // Clear mock secrets before clearing organization databases
+  secretsManagerService.clearMockSecrets();
+
+  // First clear organization databases
+  await clearOrganizationDatabases();
+
   const em = orm.em.fork();
 
   // Delete in order to respect foreign key constraints

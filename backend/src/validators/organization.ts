@@ -5,21 +5,7 @@ import { z } from "zod";
 export const createOrganizationSchema = z.object({
   name: z
     .string()
-    .min(4)
-    .refine(
-      (value) => {
-        const existing = RequestContext.getEntityManager()?.findOne(
-          Organization,
-          {
-            name: value,
-          },
-        );
-        return existing !== null;
-      },
-      {
-        message: "Organization name has been taken.",
-      },
-    ),
+    .min(4),
 });
 
 export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;

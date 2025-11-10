@@ -10,6 +10,11 @@ import OrganizationUser from "../entities/distributed/organization_user";
 import AdminProfile from "../entities/distributed/admin_profile";
 import jwtService from "../services/jwt.service";
 import { CreateAdminUserDto, CreateOrganizationDto, OrgIdParam } from "../validators/organization";
+import { runMigrationsForSingleDistributedDb } from "../utils/migrations";
+
+function isDatabaseError(error: unknown): error is Error & { code: string } {
+  return error instanceof Error && 'code' in error && typeof (error as any).code === 'string';
+}
 
 export default class OrganizationController extends BaseController {
   create = async (req: Request, res: Response) => {
@@ -17,12 +22,36 @@ export default class OrganizationController extends BaseController {
     const orgName = req.body.name;
 
     try {
+      // Check if organization with this name already exists FIRST
+      const existingOrganization = await this.em.findOne(Organization, { name: orgName });
+      if (existingOrganization) {
+        return res.status(409).json({
+          error: `Organization with name '${orgName}' already exists`,
+        });
+      }
+
       // Create the organization entity in the central database but don't persist it yet
       const organization = this.em.create(Organization, req.body);
 
       // Create the organization's dedicated database and credentials
       const dbResult = await createOrganizationDb(organization.name);
       dbCreated = true;
+
+      // Run migrations on the newly created database
+      try {
+        console.log(`Running migrations for organization: ${organization.name}`);
+        await runMigrationsForSingleDistributedDb(organization, false);
+        console.log(`Migrations completed successfully for: ${organization.name}`);
+      } catch (migrationError) {
+        console.error(
+          `Failed to run migrations for organization ${organization.name}:`,
+          migrationError,
+        );
+        await deleteOrganizationDb(organization.name);
+        return res.status(500).json({
+          error: "Failed to initialize organization database schema",
+        });
+      }
 
       try {
         // Persist to central database only after the database creation succeeded
@@ -49,10 +78,11 @@ export default class OrganizationController extends BaseController {
         );
 
         await deleteOrganizationDb(organization.name);
+        dbCreated = false;
 
         if (
-          persistError instanceof Error &&
-          persistError.message.includes("unique")
+          isDatabaseError(persistError) &&
+          (persistError.code === '23505' || persistError.message.includes("unique"))
         ) {
           return res.status(409).json({
             error: "Organization with this name already exists",
@@ -69,7 +99,7 @@ export default class OrganizationController extends BaseController {
         await deleteOrganizationDb(orgName);
       }
 
-      if (error instanceof Error && error.message.includes("unique")) {
+      if (isDatabaseError(error) && (error.code === '23505' || error.message.includes("unique"))) {
         return res.status(409).json({
           error: "Organization with this name already exists",
         });

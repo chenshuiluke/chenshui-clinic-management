@@ -46,7 +46,8 @@ export async function orgContext(
 
     if (match && match[1] && !isSystemPath) {
       // This might be an organization-specific request
-      const orgName = match[1];
+      // Decode the URL-encoded organization name (e.g., Test%20Hospital -> Test Hospital)
+      const orgName = decodeURIComponent(match[1]);
 
       // Try to get the organization ORM
       const orgOrm = await getOrgOrm(orgName);

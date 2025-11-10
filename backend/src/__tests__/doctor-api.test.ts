@@ -8,6 +8,7 @@ import {
   getApp,
   getOrm,
   createTestUser,
+  trackOrganization,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
 import { getOrgEm } from "../db/organization-db";
@@ -41,10 +42,11 @@ describe("Doctor API", () => {
     const orgResponse = await request(app)
       .post("/organizations")
       .set("Authorization", `Bearer ${centralAuthToken}`)
-      .send({ name: "Test Hospital" })
+      .send({ name: `Test Hospital Doctor ${Date.now()}` })
       .expect(201);
 
     organizationName = orgResponse.body.name;
+    trackOrganization(organizationName);
 
     // Create an admin user in the organization database
     const orgEm = await getOrgEm(organizationName);
@@ -173,7 +175,7 @@ describe("Doctor API", () => {
 
       expect(savedDoctor).to.not.be.null;
       expect(savedDoctor!.doctorProfile).to.not.be.undefined;
-      expect(savedDoctor!.doctorProfile!.phoneNumber).to.be.undefined;
+      expect(savedDoctor!.doctorProfile!.phoneNumber).to.be.null;
     });
 
     it("should require admin authentication", async () => {
@@ -447,10 +449,11 @@ describe("Doctor API", () => {
       const org2Response = await request(app)
         .post("/organizations")
         .set("Authorization", `Bearer ${centralAuthToken}`)
-        .send({ name: "Another Hospital" })
+        .send({ name: `Another Hospital ${Date.now()}` })
         .expect(201);
 
       const org2Name = org2Response.body.name;
+      trackOrganization(org2Name);
 
       // Create admin in org2
       const org2Em = await getOrgEm(org2Name);
@@ -510,16 +513,17 @@ describe("Doctor API", () => {
       const org1Em = await getOrgEm(organizationName);
       const org1Doctor = await org1Em.findOne(OrganizationUser, {
         email: doctorData.email,
-      });
+      }, { populate: ["doctorProfile"] });
       expect(org1Doctor).to.not.be.null;
 
       const org2Doctor = await org2Em.findOne(OrganizationUser, {
         email: doctorData.email,
-      });
+      }, { populate: ["doctorProfile"] });
       expect(org2Doctor).to.not.be.null;
 
-      // Verify they have different IDs (different databases)
-      expect(org1Doctor!.id).to.not.equal(org2Doctor!.id);
+      // Verify they have different specializations (proving they're isolated)
+      expect(org1Doctor!.doctorProfile!.specialization).to.equal("Cardiology");
+      expect(org2Doctor!.doctorProfile!.specialization).to.equal("Neurology");
     });
 
     it("should reject token without orgName field", async () => {
@@ -543,9 +547,9 @@ describe("Doctor API", () => {
         .post(`/${organizationName}/doctors`)
         .set("Authorization", `Bearer ${tokenWithoutOrg}`)
         .send(doctorData)
-        .expect(403);
+        .expect(401);
 
-      expect(response.body).to.have.property("error");
+      expect(response.body).to.have.property("error", "Organization token required");
     });
 
     it("should reject token with mismatched orgName", async () => {
@@ -572,9 +576,9 @@ describe("Doctor API", () => {
         .post(`/${organizationName}/doctors`)
         .set("Authorization", `Bearer ${mismatchedToken}`)
         .send(doctorData)
-        .expect(403);
+        .expect(401);
 
-      expect(response.body).to.have.property("error");
+      expect(response.body).to.have.property("error", "Token organization mismatch");
     });
 
   });
@@ -649,8 +653,8 @@ describe("Doctor API", () => {
 
       expect(savedDoctor).to.not.be.null;
       expect(savedDoctor!.doctorProfile).to.not.be.undefined;
-      expect(savedDoctor!.adminProfile).to.be.undefined;
-      expect(savedDoctor!.patientProfile).to.be.undefined;
+      expect(savedDoctor!.adminProfile).to.be.null;
+      expect(savedDoctor!.patientProfile).to.be.null;
     });
   });
 });
