@@ -10,6 +10,7 @@ import {
   getOrm,
   createTestUser,
   trackOrganization,
+  getSentEmails,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
 import { getOrgEm } from "../db/organization-db";
@@ -164,6 +165,14 @@ describe("Patient API", () => {
         .expect(200);
 
       expect(meResponse.body).to.have.property("id", savedPatient!.id);
+
+      // Verify welcome email was sent
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal(patientData.email);
+      expect(sentEmails[0]!.subject).to.include("Welcome");
+      expect(sentEmails[0]!.htmlBody).to.include(patientData.firstName);
+      expect(sentEmails[0]!.htmlBody).to.include(organizationName);
     });
 
     it("should register a patient with only required fields", async () => {

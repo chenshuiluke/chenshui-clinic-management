@@ -11,10 +11,12 @@ import {
   getOrm,
   createTestUser,
   trackOrganization,
+  getSentEmails,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
 import { getOrgEm } from "../db/organization-db";
 import { OrgJWTPayload } from "../config/jwt.config";
+import { emailService } from "../services/email.service";
 
 describe("Appointment API", () => {
   let app: ReturnType<typeof getApp>;
@@ -201,6 +203,7 @@ describe("Appointment API", () => {
       .expect(201);
 
     testAppointmentId = bookResponse.body.id;
+    emailService.clearSentEmails();
   });
 
   describe("POST /:orgName/appointments", () => {
@@ -230,6 +233,12 @@ describe("Appointment API", () => {
       expect(apt!.status).to.equal(AppointmentStatus.PENDING);
       expect(apt!.patient?.id).to.equal(patientId);
       expect(apt!.doctor?.id).to.equal(doctorId);
+
+      // Verify email was sent to doctor
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal("doctor@hospital.com");
+      expect(sentEmails[0]!.subject).to.include("New Appointment");
     });
 
     it("should require patient authentication", async () => {
@@ -368,10 +377,13 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(200);
 
-      expect(response.body, `Expected array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
-      expect(response.body.length).to.be.at.least(1);
+      expect(response.body.appointments, `Expected appointments array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.be.at.least(1);
 
-      const appointment = response.body[0];
+      const appointment = response.body.appointments[0];
       expect(appointment).to.have.property("id");
       expect(appointment).to.have.property("appointmentDateTime");
       expect(appointment).to.have.property("status");
@@ -405,8 +417,12 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondPatientToken}`)
         .expect(200);
 
-      expect(response.body).to.be.an("array");
-      expect(response.body.length).to.equal(0);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.equal(0);
+      expect(response.body.total).to.equal(0);
     });
 
     it("should order appointments by date descending", async () => {
@@ -438,12 +454,16 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(200);
 
-      expect(response.body.length).to.be.at.least(3);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.be.at.least(3);
 
       // Verify descending order
-      for (let i = 0; i < response.body.length - 1; i++) {
-        const date1 = new Date(response.body[i].appointmentDateTime);
-        const date2 = new Date(response.body[i + 1].appointmentDateTime);
+      for (let i = 0; i < response.body.appointments.length - 1; i++) {
+        const date1 = new Date(response.body.appointments[i].appointmentDateTime);
+        const date2 = new Date(response.body.appointments[i + 1].appointmentDateTime);
         expect(date1.getTime()).to.be.at.least(date2.getTime());
       }
     });
@@ -460,7 +480,11 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(200);
 
-      const statuses = response.body.map((apt: any) => apt.status);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      const statuses = response.body.appointments.map((apt: any) => apt.status);
       expect(statuses).to.include(AppointmentStatus.APPROVED);
     });
   });
@@ -472,10 +496,13 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
-      expect(response.body, `Expected array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
-      expect(response.body.length).to.be.at.least(1);
+      expect(response.body.appointments, `Expected appointments array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.be.at.least(1);
 
-      const appointment = response.body[0];
+      const appointment = response.body.appointments[0];
       expect(appointment).to.have.property("id", testAppointmentId);
       expect(appointment).to.have.property("status", AppointmentStatus.PENDING);
       expect(appointment).to.have.property("patient");
@@ -509,8 +536,12 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondDoctorToken}`)
         .expect(200);
 
-      expect(response.body).to.be.an("array");
-      expect(response.body.length).to.equal(0);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.equal(0);
+      expect(response.body.total).to.equal(0);
     });
 
     it("should order appointments by date ascending", async () => {
@@ -542,12 +573,16 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
-      expect(response.body.length).to.be.at.least(3);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.be.at.least(3);
 
       // Verify ascending order
-      for (let i = 0; i < response.body.length - 1; i++) {
-        const date1 = new Date(response.body[i].appointmentDateTime);
-        const date2 = new Date(response.body[i + 1].appointmentDateTime);
+      for (let i = 0; i < response.body.appointments.length - 1; i++) {
+        const date1 = new Date(response.body.appointments[i].appointmentDateTime);
+        const date2 = new Date(response.body.appointments[i + 1].appointmentDateTime);
         expect(date1.getTime()).to.be.at.most(date2.getTime());
       }
     });
@@ -564,8 +599,12 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
       // Verify all returned appointments are PENDING
-      response.body.forEach((apt: any) => {
+      response.body.appointments.forEach((apt: any) => {
         expect(apt.status).to.equal(AppointmentStatus.PENDING);
       });
     });
@@ -599,7 +638,12 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
-      expect(response.body.length).to.equal(3);
+      expect(response.body.appointments).to.be.an("array");
+      expect(response.body).to.have.property("total");
+      expect(response.body).to.have.property("limit");
+      expect(response.body).to.have.property("offset");
+      expect(response.body.appointments.length).to.equal(3);
+      expect(response.body.total).to.equal(3);
     });
   });
 
@@ -619,6 +663,12 @@ describe("Appointment API", () => {
       const em = await getOrgEm(organizationName);
       const apt = await em.findOne(Appointment, { id: testAppointmentId });
       expect(apt!.status).to.equal(AppointmentStatus.APPROVED);
+
+      // Verify email was sent to patient
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal("patient@hospital.com");
+      expect(sentEmails[0]!.subject).to.include("Approved");
     });
 
     it("should require doctor authentication", async () => {
@@ -708,6 +758,12 @@ describe("Appointment API", () => {
       const em = await getOrgEm(organizationName);
       const apt = await em.findOne(Appointment, { id: testAppointmentId });
       expect(apt!.status).to.equal(AppointmentStatus.DECLINED);
+
+      // Verify email was sent to patient
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal("patient@hospital.com");
+      expect(sentEmails[0]!.subject).to.include("Declined");
     });
 
     it("should require doctor authentication", async () => {
@@ -786,6 +842,12 @@ describe("Appointment API", () => {
       const em = await getOrgEm(organizationName);
       const apt = await em.findOne(Appointment, { id: testAppointmentId });
       expect(apt!.status).to.equal(AppointmentStatus.CANCELLED);
+
+      // Verify email was sent to doctor
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal("doctor@hospital.com");
+      expect(sentEmails[0]!.subject).to.include("Cancelled");
     });
 
     it("should cancel approved appointment", async () => {
@@ -877,6 +939,7 @@ describe("Appointment API", () => {
         .put(`/${organizationName}/appointments/${testAppointmentId}/approve`)
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
+      emailService.clearSentEmails();
     });
 
     it("should complete approved appointment and update database", async () => {
@@ -893,6 +956,12 @@ describe("Appointment API", () => {
       const em = await getOrgEm(organizationName);
       const apt = await em.findOne(Appointment, { id: testAppointmentId });
       expect(apt!.status).to.equal(AppointmentStatus.COMPLETED);
+
+      // Verify email was sent to patient
+      const sentEmails = getSentEmails();
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0]!.to).to.equal("patient@hospital.com");
+      expect(sentEmails[0]!.subject).to.include("Completed");
     });
 
     it("should require doctor authentication", async () => {

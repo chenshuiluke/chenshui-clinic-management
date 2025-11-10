@@ -16,6 +16,8 @@ import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import * as ses from "aws-cdk-lib/aws-ses";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 import path from "path";
 
@@ -77,6 +79,12 @@ export class InfrastructureStack extends cdk.Stack {
       publiclyAccessible: true, // True only because it needs to be accessible for assessment purposes. Will need to make further modifications due to private subnet later
     });
 
+    // Create SES email identity for sending emails
+    // This verifies the domain for sending emails via AWS SES
+    new ses.EmailIdentity(this, "SESEmailIdentity", {
+      identity: ses.Identity.domain("clinic.lukecs.com"),
+    });
+
     const dockerImage = new ecr_assets.DockerImageAsset(
       this,
       "APIDockerImage",
@@ -111,6 +119,10 @@ export class InfrastructureStack extends cdk.Stack {
               DB_HOST: db.dbInstanceEndpointAddress,
               DB_PORT: db.dbInstanceEndpointPort,
               DB_NAME: "chenshui_clinic_management",
+              // Email configuration
+              AWS_REGION: this.region,
+              AWS_SES_FROM_EMAIL: "noreply@clinic.lukecs.com",
+              AWS_SES_FROM_NAME: "Clinic Management System",
             },
 
             // Add secrets (database credentials)
@@ -148,6 +160,16 @@ export class InfrastructureStack extends cdk.Stack {
       fargateService.service,
       ec2.Port.tcp(5432),
       "Allow Fargate tasks to connect to RDS",
+    );
+
+    // Grant SES permissions to ECS task role
+    // This allows the ECS tasks to send emails via AWS SES
+    fargateService.taskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ses:SendEmail", "ses:SendRawEmail"],
+        resources: ["*"],
+      }),
     );
 
     // Add alarms for outages or signs of upcoming issues like resource exhaustion

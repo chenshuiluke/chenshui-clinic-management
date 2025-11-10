@@ -8,6 +8,7 @@ import jwtService from "../services/jwt.service";
 import { deleteOrganizationDb } from "../services/organization";
 import { evictOrgFromCache } from "../db/organization-db";
 import { secretsManagerService } from "../services/secrets-manager.service";
+import { emailService } from "../services/email.service";
 
 let cachedOrm: MikroORM | null = null;
 let cachedApp: express.Application | null = null;
@@ -101,6 +102,9 @@ export async function clearDatabase(orm: MikroORM): Promise<void> {
   // Clear mock secrets before clearing organization databases
   secretsManagerService.clearMockSecrets();
 
+  // Clear sent emails
+  emailService.clearSentEmails();
+
   // First clear organization databases
   await clearOrganizationDatabases();
 
@@ -110,6 +114,13 @@ export async function clearDatabase(orm: MikroORM): Promise<void> {
   // await em.nativeDelete(Patient, {});
   await em.nativeDelete(User, {});
   await em.nativeDelete(Organization, {});
+}
+
+/**
+ * Get sent emails for test assertions
+ */
+export function getSentEmails() {
+  return emailService.getSentEmails();
 }
 
 /**
