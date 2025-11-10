@@ -19,21 +19,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ElasticMQ - Local SQS Implementation
-  sqs:
-    image: softwaremill/elasticmq-native:1.5.7
-    container_name: clinic-sqs
-    ports:
-      - "9324:9324"
-      - "9325:9325"
-    volumes:
-      - ./elasticmq.conf:/opt/elasticmq.conf
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 9324 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Backend Service
   backend:
     build:

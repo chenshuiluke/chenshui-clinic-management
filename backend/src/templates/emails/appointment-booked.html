@@ -1,0 +1,11 @@
+<p>Dear Dr. {{doctorName}},</p>
+<p>You have received a new appointment request.</p>
+<div class="highlight-box">
+  <strong>Patient:</strong> {{patientName}}<br>
+  <strong>Date & Time:</strong> {{appointmentDateTime}}<br>
+  {{#if notes}}
+  <strong>Notes:</strong> {{notes}}<br>
+  {{/if}}
+</div>
+<p>Please review and approve or decline this appointment at your earliest convenience.</p>
+<p>Best regards,<br>Clinic Management System</p>

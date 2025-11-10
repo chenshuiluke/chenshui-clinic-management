@@ -3,12 +3,12 @@ import {
   SendEmailCommand,
   SendEmailCommandInput,
 } from "@aws-sdk/client-ses";
+import { templateLoader } from "../utils/template-loader";
 
 export interface EmailParams {
   to: string;
   subject: string;
   htmlBody: string;
-  textBody: string;
 }
 
 export enum EmailTemplate {
@@ -59,7 +59,6 @@ class EmailService {
           to: command.input.Destination?.ToAddresses?.[0] || "",
           subject: command.input.Message?.Subject?.Data || "",
           htmlBody: command.input.Message?.Body?.Html?.Data || "",
-          textBody: command.input.Message?.Body?.Text?.Data || "",
         };
         this.sentEmails.push(emailParams);
         return {
@@ -93,10 +92,6 @@ class EmailService {
             Data: params.htmlBody,
             Charset: "UTF-8",
           },
-          Text: {
-            Data: params.textBody,
-            Charset: "UTF-8",
-          },
         },
       },
     };
@@ -128,50 +123,22 @@ class EmailService {
     organizationName: string;
   }): Promise<void> {
     const subject = "Welcome to Clinic Management System";
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Welcome to Clinic Management System</h1>
-          </div>
-          <div class="content">
-            <p>Dear ${params.patientName},</p>
-            <p>Welcome to ${params.organizationName}! Your patient account has been successfully created.</p>
-            <p>You can now:</p>
-            <ul>
-              <li>Book appointments with your healthcare providers</li>
-              <li>View your appointment history</li>
-              <li>Manage your profile information</li>
-            </ul>
-            <p>If you have any questions, please don't hesitate to contact us.</p>
-            <p>Best regards,<br>${params.organizationName}</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Welcome to Clinic Management System\n\nDear ${params.patientName},\n\nWelcome to ${params.organizationName}! Your patient account has been successfully created.\n\nYou can now:\n- Book appointments with your healthcare providers\n- View your appointment history\n- Manage your profile information\n\nIf you have any questions, please don't hesitate to contact us.\n\nBest regards,\n${params.organizationName}`;
+    const htmlBody = templateLoader.render(
+      "patient-registration",
+      {
+        patientName: params.patientName,
+        organizationName: params.organizationName,
+      },
+      {
+        title: "Welcome to Clinic Management System",
+        headerColor: "#4CAF50",
+      },
+    );
 
     await this.sendEmail({
       to: params.to,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -188,50 +155,24 @@ class EmailService {
       timeStyle: "short",
     });
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #2196F3; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .appointment-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #2196F3; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>New Appointment Request</h1>
-          </div>
-          <div class="content">
-            <p>Dear Dr. ${params.doctorName},</p>
-            <p>You have received a new appointment request.</p>
-            <div class="appointment-details">
-              <strong>Patient:</strong> ${params.patientName}<br>
-              <strong>Date & Time:</strong> ${formattedDate}<br>
-              ${params.notes ? `<strong>Notes:</strong> ${params.notes}<br>` : ""}
-            </div>
-            <p>Please review and approve or decline this appointment at your earliest convenience.</p>
-            <p>Best regards,<br>Clinic Management System</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `New Appointment Request\n\nDear Dr. ${params.doctorName},\n\nYou have received a new appointment request.\n\nPatient: ${params.patientName}\nDate & Time: ${formattedDate}\n${params.notes ? `Notes: ${params.notes}\n` : ""}\nPlease review and approve or decline this appointment at your earliest convenience.\n\nBest regards,\nClinic Management System`;
+    const htmlBody = templateLoader.render(
+      "appointment-booked",
+      {
+        doctorName: params.doctorName,
+        patientName: params.patientName,
+        appointmentDateTime: formattedDate,
+        notes: params.notes,
+      },
+      {
+        title: "New Appointment Request",
+        headerColor: "#2196F3",
+      },
+    );
 
     await this.sendEmail({
       to: params.doctorEmail,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -247,49 +188,23 @@ class EmailService {
       timeStyle: "short",
     });
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .appointment-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #4CAF50; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Appointment Approved</h1>
-          </div>
-          <div class="content">
-            <p>Dear ${params.patientName},</p>
-            <p>Great news! Your appointment has been approved.</p>
-            <div class="appointment-details">
-              <strong>Doctor:</strong> Dr. ${params.doctorName}<br>
-              <strong>Date & Time:</strong> ${formattedDate}<br>
-            </div>
-            <p>Please make sure to arrive on time for your appointment.</p>
-            <p>Best regards,<br>Clinic Management System</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Appointment Approved\n\nDear ${params.patientName},\n\nGreat news! Your appointment has been approved.\n\nDoctor: Dr. ${params.doctorName}\nDate & Time: ${formattedDate}\n\nPlease make sure to arrive on time for your appointment.\n\nBest regards,\nClinic Management System`;
+    const htmlBody = templateLoader.render(
+      "appointment-approved",
+      {
+        patientName: params.patientName,
+        doctorName: params.doctorName,
+        appointmentDateTime: formattedDate,
+      },
+      {
+        title: "Appointment Approved",
+        headerColor: "#4CAF50",
+      },
+    );
 
     await this.sendEmail({
       to: params.patientEmail,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -305,49 +220,23 @@ class EmailService {
       timeStyle: "short",
     });
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #f44336; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .appointment-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #f44336; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Appointment Declined</h1>
-          </div>
-          <div class="content">
-            <p>Dear ${params.patientName},</p>
-            <p>Unfortunately, your appointment request has been declined.</p>
-            <div class="appointment-details">
-              <strong>Doctor:</strong> Dr. ${params.doctorName}<br>
-              <strong>Date & Time:</strong> ${formattedDate}<br>
-            </div>
-            <p>Please contact us to schedule an alternative appointment or if you have any questions.</p>
-            <p>Best regards,<br>Clinic Management System</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Appointment Declined\n\nDear ${params.patientName},\n\nUnfortunately, your appointment request has been declined.\n\nDoctor: Dr. ${params.doctorName}\nDate & Time: ${formattedDate}\n\nPlease contact us to schedule an alternative appointment or if you have any questions.\n\nBest regards,\nClinic Management System`;
+    const htmlBody = templateLoader.render(
+      "appointment-declined",
+      {
+        patientName: params.patientName,
+        doctorName: params.doctorName,
+        appointmentDateTime: formattedDate,
+      },
+      {
+        title: "Appointment Declined",
+        headerColor: "#f44336",
+      },
+    );
 
     await this.sendEmail({
       to: params.patientEmail,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -363,49 +252,23 @@ class EmailService {
       timeStyle: "short",
     });
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .appointment-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #FF9800; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Appointment Cancelled</h1>
-          </div>
-          <div class="content">
-            <p>Dear Dr. ${params.doctorName},</p>
-            <p>An appointment has been cancelled by the patient.</p>
-            <div class="appointment-details">
-              <strong>Patient:</strong> ${params.patientName}<br>
-              <strong>Date & Time:</strong> ${formattedDate}<br>
-            </div>
-            <p>This appointment slot is now available for other patients.</p>
-            <p>Best regards,<br>Clinic Management System</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Appointment Cancelled\n\nDear Dr. ${params.doctorName},\n\nAn appointment has been cancelled by the patient.\n\nPatient: ${params.patientName}\nDate & Time: ${formattedDate}\n\nThis appointment slot is now available for other patients.\n\nBest regards,\nClinic Management System`;
+    const htmlBody = templateLoader.render(
+      "appointment-cancelled",
+      {
+        doctorName: params.doctorName,
+        patientName: params.patientName,
+        appointmentDateTime: formattedDate,
+      },
+      {
+        title: "Appointment Cancelled",
+        headerColor: "#FF9800",
+      },
+    );
 
     await this.sendEmail({
       to: params.doctorEmail,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -421,49 +284,23 @@ class EmailService {
       timeStyle: "short",
     });
 
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .appointment-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #4CAF50; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Appointment Completed</h1>
-          </div>
-          <div class="content">
-            <p>Dear ${params.patientName},</p>
-            <p>Your appointment has been completed.</p>
-            <div class="appointment-details">
-              <strong>Doctor:</strong> Dr. ${params.doctorName}<br>
-              <strong>Date & Time:</strong> ${formattedDate}<br>
-            </div>
-            <p>Thank you for visiting us. If you have any follow-up questions, please don't hesitate to contact us.</p>
-            <p>Best regards,<br>Clinic Management System</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Appointment Completed\n\nDear ${params.patientName},\n\nYour appointment has been completed.\n\nDoctor: Dr. ${params.doctorName}\nDate & Time: ${formattedDate}\n\nThank you for visiting us. If you have any follow-up questions, please don't hesitate to contact us.\n\nBest regards,\nClinic Management System`;
+    const htmlBody = templateLoader.render(
+      "appointment-completed",
+      {
+        patientName: params.patientName,
+        doctorName: params.doctorName,
+        appointmentDateTime: formattedDate,
+      },
+      {
+        title: "Appointment Completed",
+        headerColor: "#4CAF50",
+      },
+    );
 
     await this.sendEmail({
       to: params.patientEmail,
       subject,
       htmlBody,
-      textBody,
     });
   }
 
@@ -473,46 +310,22 @@ class EmailService {
     organizationName: string;
   }): Promise<void> {
     const subject = "Account Deletion Confirmation";
-    const htmlBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #f44336; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9f9f9; }
-          .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Account Deletion Confirmation</h1>
-          </div>
-          <div class="content">
-            <p>Dear ${params.patientName},</p>
-            <p>Your patient account with ${params.organizationName} has been successfully deleted.</p>
-            <p>All your personal information has been removed from our system.</p>
-            <p>If you did not request this deletion, please contact us immediately.</p>
-            <p>Thank you for using our services.</p>
-            <p>Best regards,<br>${params.organizationName}</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated message from Clinic Management System.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-    const textBody = `Account Deletion Confirmation\n\nDear ${params.patientName},\n\nYour patient account with ${params.organizationName} has been successfully deleted.\n\nAll your personal information has been removed from our system.\n\nIf you did not request this deletion, please contact us immediately.\n\nThank you for using our services.\n\nBest regards,\n${params.organizationName}`;
+    const htmlBody = templateLoader.render(
+      "patient-deletion",
+      {
+        patientName: params.patientName,
+        organizationName: params.organizationName,
+      },
+      {
+        title: "Account Deletion Confirmation",
+        headerColor: "#f44336",
+      },
+    );
 
     await this.sendEmail({
       to: params.to,
       subject,
       htmlBody,
-      textBody,
     });
   }
 }

@@ -18,7 +18,6 @@ describe("Email Service", () => {
         to: "test@example.com",
         subject: "Test Email",
         htmlBody: "<p>Test HTML body</p>",
-        textBody: "Test text body",
       });
 
       const sentEmails = emailService.getSentEmails();
@@ -32,14 +31,12 @@ describe("Email Service", () => {
         to: "user1@example.com",
         subject: "Email 1",
         htmlBody: "<p>Email 1</p>",
-        textBody: "Email 1",
       });
 
       await emailService.sendEmail({
         to: "user2@example.com",
         subject: "Email 2",
         htmlBody: "<p>Email 2</p>",
-        textBody: "Email 2",
       });
 
       const sentEmails = emailService.getSentEmails();
@@ -53,7 +50,6 @@ describe("Email Service", () => {
         to: "test@example.com",
         subject: "Test",
         htmlBody: "<p>Test</p>",
-        textBody: "Test",
       });
 
       expect(emailService.getSentEmails()).to.have.lengthOf(1);
@@ -78,8 +74,6 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.subject).to.include("Welcome");
         expect(sentEmails[0]!.htmlBody).to.include("John Doe");
         expect(sentEmails[0]!.htmlBody).to.include("Test Clinic");
-        expect(sentEmails[0]!.textBody).to.include("John Doe");
-        expect(sentEmails[0]!.textBody).to.include("Test Clinic");
       });
     });
 
@@ -102,7 +96,6 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.htmlBody).to.include("Dr. Smith");
         expect(sentEmails[0]!.htmlBody).to.include("Jane Doe");
         expect(sentEmails[0]!.htmlBody).to.include("First visit");
-        expect(sentEmails[0]!.textBody).to.include("Jane Doe");
       });
     });
 
@@ -123,7 +116,7 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.subject).to.include("Approved");
         expect(sentEmails[0]!.htmlBody).to.include("Jane Doe");
         expect(sentEmails[0]!.htmlBody).to.include("Dr. Smith");
-        expect(sentEmails[0]!.textBody).to.include("approved");
+        expect(sentEmails[0]!.htmlBody).to.include("approved");
       });
     });
 
@@ -144,7 +137,7 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.subject).to.include("Declined");
         expect(sentEmails[0]!.htmlBody).to.include("Jane Doe");
         expect(sentEmails[0]!.htmlBody).to.include("Dr. Smith");
-        expect(sentEmails[0]!.textBody).to.include("declined");
+        expect(sentEmails[0]!.htmlBody).to.include("declined");
       });
     });
 
@@ -165,7 +158,7 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.subject).to.include("Cancelled");
         expect(sentEmails[0]!.htmlBody).to.include("Dr. Smith");
         expect(sentEmails[0]!.htmlBody).to.include("Jane Doe");
-        expect(sentEmails[0]!.textBody).to.include("cancelled");
+        expect(sentEmails[0]!.htmlBody).to.include("cancelled");
       });
     });
 
@@ -186,25 +179,22 @@ describe("Email Service", () => {
         expect(sentEmails[0]!.subject).to.include("Completed");
         expect(sentEmails[0]!.htmlBody).to.include("Jane Doe");
         expect(sentEmails[0]!.htmlBody).to.include("Dr. Smith");
-        expect(sentEmails[0]!.textBody).to.include("completed");
+        expect(sentEmails[0]!.htmlBody).to.include("completed");
       });
     });
   });
 
   describe("Email Formatting", () => {
-    it("should provide both HTML and text body formats", async () => {
+    it("should provide HTML body format", async () => {
       await emailService.sendEmail({
         to: "test@example.com",
         subject: "Test",
         htmlBody: "<html><body><p>HTML content</p></body></html>",
-        textBody: "Text content",
       });
 
       const sentEmails = emailService.getSentEmails();
       expect(sentEmails[0]!.htmlBody).to.include("<html>");
       expect(sentEmails[0]!.htmlBody).to.include("<body>");
-      expect(sentEmails[0]!.textBody).to.be.a("string");
-      expect(sentEmails[0]!.textBody).to.not.include("<html>");
     });
 
     it("should include basic HTML structure in templates", async () => {
@@ -221,7 +211,7 @@ describe("Email Service", () => {
       expect(sentEmails[0]!.htmlBody).to.include("</body>");
     });
 
-    it("should provide readable text fallback", async () => {
+    it("should include user data in rendered templates", async () => {
       await emailService.sendPatientRegistrationEmail({
         to: "test@example.com",
         patientName: "Test User",
@@ -229,14 +219,11 @@ describe("Email Service", () => {
       });
 
       const sentEmails = emailService.getSentEmails();
-      const textBody = sentEmails[0]!.textBody;
-      expect(textBody).to.be.a("string");
-      expect(textBody.length).to.be.greaterThan(0);
-      expect(textBody).to.include("Test User");
-      expect(textBody).to.include("Test Org");
-      // Text body should not contain HTML tags
-      expect(textBody).to.not.include("<");
-      expect(textBody).to.not.include(">");
+      const htmlBody = sentEmails[0]!.htmlBody;
+      expect(htmlBody).to.be.a("string");
+      expect(htmlBody.length).to.be.greaterThan(0);
+      expect(htmlBody).to.include("Test User");
+      expect(htmlBody).to.include("Test Org");
     });
   });
 
@@ -247,7 +234,6 @@ describe("Email Service", () => {
         to: "invalid-email",
         subject: "Test",
         htmlBody: "<p>Test</p>",
-        textBody: "Test",
       });
 
       const sentEmails = emailService.getSentEmails();
@@ -262,7 +248,6 @@ describe("Email Service", () => {
             to: `user${i}@example.com`,
             subject: `Test ${i}`,
             htmlBody: `<p>Test ${i}</p>`,
-            textBody: `Test ${i}`,
           })
         );
       }
@@ -271,6 +256,169 @@ describe("Email Service", () => {
 
       const sentEmails = emailService.getSentEmails();
       expect(sentEmails).to.have.lengthOf(10);
+    });
+  });
+
+  describe("Template System", () => {
+    it("should render patient registration template with user data", async () => {
+      await emailService.sendPatientRegistrationEmail({
+        to: "test@example.com",
+        patientName: "John Smith",
+        organizationName: "Happy Clinic",
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      // Should include template content with substituted values
+      expect(htmlBody).to.include("John Smith");
+      expect(htmlBody).to.include("Happy Clinic");
+      expect(htmlBody).to.include("Book appointments with your healthcare providers");
+      expect(htmlBody).to.include("View your appointment history");
+      expect(htmlBody).to.include("Manage your profile information");
+    });
+
+    it("should render appointment booked template with appointment details", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      await emailService.sendAppointmentBookedEmail({
+        doctorEmail: "doctor@example.com",
+        doctorName: "Dr. Johnson",
+        patientName: "Sarah Connor",
+        appointmentDateTime: appointmentDate,
+        notes: "First visit - please arrive 15 minutes early",
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Dr. Johnson");
+      expect(htmlBody).to.include("Sarah Connor");
+      expect(htmlBody).to.include("First visit - please arrive 15 minutes early");
+      expect(htmlBody).to.include("Please review and approve or decline this appointment");
+    });
+
+    it("should conditionally include notes in appointment booked email", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      // Test with notes
+      await emailService.sendAppointmentBookedEmail({
+        doctorEmail: "doctor@example.com",
+        doctorName: "Dr. Smith",
+        patientName: "Jane Doe",
+        appointmentDateTime: appointmentDate,
+        notes: "Important notes here",
+      });
+
+      let sentEmails = emailService.getSentEmails();
+      expect(sentEmails[0]!.htmlBody).to.include("Important notes here");
+
+      emailService.clearSentEmails();
+
+      // Test without notes
+      await emailService.sendAppointmentBookedEmail({
+        doctorEmail: "doctor@example.com",
+        doctorName: "Dr. Smith",
+        patientName: "Jane Doe",
+        appointmentDateTime: appointmentDate,
+        notes: "",
+      });
+
+      sentEmails = emailService.getSentEmails();
+      // Should not show the notes line when empty
+      expect(sentEmails[0]!.htmlBody).to.not.include("Important notes here");
+    });
+
+    it("should render appointment approved template correctly", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      await emailService.sendAppointmentApprovedEmail({
+        patientEmail: "patient@example.com",
+        patientName: "Alice Johnson",
+        doctorName: "Dr. Williams",
+        appointmentDateTime: appointmentDate,
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Alice Johnson");
+      expect(htmlBody).to.include("Dr. Williams");
+      expect(htmlBody).to.include("Great news! Your appointment has been approved");
+      expect(htmlBody).to.include("Please make sure to arrive on time");
+    });
+
+    it("should render appointment declined template correctly", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      await emailService.sendAppointmentDeclinedEmail({
+        patientEmail: "patient@example.com",
+        patientName: "Bob Miller",
+        doctorName: "Dr. Chen",
+        appointmentDateTime: appointmentDate,
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Bob Miller");
+      expect(htmlBody).to.include("Dr. Chen");
+      expect(htmlBody).to.include("Unfortunately, your appointment request has been declined");
+      expect(htmlBody).to.include("contact us to schedule an alternative appointment");
+    });
+
+    it("should render appointment cancelled template correctly", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      await emailService.sendAppointmentCancelledEmail({
+        doctorEmail: "doctor@example.com",
+        doctorName: "Dr. Martinez",
+        patientName: "Charlie Brown",
+        appointmentDateTime: appointmentDate,
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Dr. Martinez");
+      expect(htmlBody).to.include("Charlie Brown");
+      expect(htmlBody).to.include("An appointment has been cancelled by the patient");
+      expect(htmlBody).to.include("This appointment slot is now available");
+    });
+
+    it("should render appointment completed template correctly", async () => {
+      const appointmentDate = new Date("2025-12-01T10:00:00Z");
+
+      await emailService.sendAppointmentCompletedEmail({
+        patientEmail: "patient@example.com",
+        patientName: "Diana Prince",
+        doctorName: "Dr. Anderson",
+        appointmentDateTime: appointmentDate,
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Diana Prince");
+      expect(htmlBody).to.include("Dr. Anderson");
+      expect(htmlBody).to.include("Your appointment has been completed");
+      expect(htmlBody).to.include("Thank you for visiting us");
+    });
+
+    it("should render patient deletion template correctly", async () => {
+      await emailService.sendPatientDeletionEmail({
+        to: "patient@example.com",
+        patientName: "Emma Watson",
+        organizationName: "Wellness Center",
+      });
+
+      const sentEmails = emailService.getSentEmails();
+      const htmlBody = sentEmails[0]!.htmlBody;
+
+      expect(htmlBody).to.include("Emma Watson");
+      expect(htmlBody).to.include("Wellness Center");
+      expect(htmlBody).to.include("Your patient account with Wellness Center has been successfully deleted");
+      expect(htmlBody).to.include("All your personal information has been removed");
     });
   });
 });
