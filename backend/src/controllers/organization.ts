@@ -9,6 +9,9 @@ import { getOrgEm } from "../db/organization-db";
 import OrganizationUser from "../entities/distributed/organization_user";
 import AdminProfile from "../entities/distributed/admin_profile";
 import jwtService from "../services/jwt.service";
+import cryptoService from "../utils/crypto";
+import { securityLogger } from "../utils/logger";
+import { clearOrgCache } from "../middleware/org";
 import { CreateAdminUserDto, CreateOrganizationDto, OrgIdParam } from "../validators/organization";
 import { runMigrationsForSingleDistributedDb } from "../utils/migrations";
 
@@ -56,6 +59,12 @@ export default class OrganizationController extends BaseController {
       try {
         // Persist to central database only after the database creation succeeded
         await this.em.persistAndFlush(organization);
+
+        // Clear org cache since a new org was created
+        clearOrgCache(organization.name);
+
+        // Log organization creation
+        securityLogger.organizationCreated(organization.name, req.user?.userId || 0);
 
         // Return the organization along with database creation info
         res.status(201).json({

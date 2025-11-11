@@ -5,6 +5,7 @@ import { getApp, getOrm } from "./fixtures";
 import jwtService from "../services/jwt.service";
 import User from "../entities/central/user";
 import { is } from "zod/v4/locales";
+import cryptoService from "../utils/crypto";
 
 describe("Auth API", () => {
   let app: any;
@@ -20,7 +21,7 @@ describe("Auth API", () => {
       const userData = {
         email: "test@example.com",
         name: "Test User",
-        password: "password123",
+        password: "Password123!@#",
       };
 
       const response = await request(app)
@@ -67,7 +68,7 @@ describe("Auth API", () => {
       const userData = {
         email: "duplicate@example.com",
         name: "First User",
-        password: "password123",
+        password: "Password123!@#",
       };
 
       await request(app).post("/auth/register").send(userData).expect(201);
@@ -94,7 +95,7 @@ describe("Auth API", () => {
         .send({
           email: invalidEmail,
           name: "Test User",
-          password: "password123",
+          password: "Password123!@#",
         })
         .expect(400);
 
@@ -256,9 +257,10 @@ describe("Auth API", () => {
         userId: user.id,
         email: user.email,
         name: user.name,
+        type: 'central'
       });
 
-      user.refreshToken = tokens.refreshToken;
+      user.refreshToken = await cryptoService.hashRefreshToken(tokens.refreshTokenPlain);
       await em.flush();
 
       userId = user.id;
@@ -304,6 +306,7 @@ describe("Auth API", () => {
         userId: nonExistentUserId,
         email: "refresh@example.com",
         name: "Refresh User",
+        type: 'central'
       });
 
       const response = await request(app)
@@ -336,6 +339,7 @@ describe("Auth API", () => {
         userId: user.id,
         email: user.email,
         name: user.name,
+        type: 'central'
       });
     });
 
@@ -402,6 +406,7 @@ describe("Auth API", () => {
         userId: user.id,
         email: user.email,
         name: user.name,
+        type: 'central'
       });
     });
 
@@ -464,6 +469,7 @@ describe("Auth API", () => {
         userId: verifierUser.id,
         email: verifierUser.email,
         name: verifierUser.name,
+        type: 'central'
       });
     });
 
@@ -589,6 +595,7 @@ describe("Auth API", () => {
         userId: user.id,
         email: user.email,
         name: user.name,
+        type: 'central'
       });
 
       const response = await request(app)

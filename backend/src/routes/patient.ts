@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import patientController from '../controllers/patient';
 import { validateRequest } from '../middleware/validator';
-import { requirePatient } from '../middleware/auth';
+import { requirePatient, rejectAuthOnOpenEndpoint } from '../middleware/auth';
 import { patientRegisterSchema, updatePatientProfileSchema } from '../validators/patient';
 
 const router = Router();
 
-router.post('/register', validateRequest(patientRegisterSchema), (req, res) =>
+router.post('/register', rejectAuthOnOpenEndpoint, validateRequest(patientRegisterSchema), (req, res) =>
   patientController.register(req, res)
 );
 

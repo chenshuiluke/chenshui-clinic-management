@@ -2,7 +2,12 @@ import { Router } from 'express';
 import appointmentController from '../controllers/appointment';
 import { validateRequest } from '../middleware/validator';
 import { requirePatient, requireDoctor } from '../middleware/auth';
-import { bookAppointmentSchema, appointmentIdParamSchema } from '../validators/appointment';
+import {
+  bookAppointmentSchema,
+  appointmentIdParamSchema,
+  appointmentQuerySchema,
+  updateAppointmentStatusSchema
+} from '../validators/appointment';
 import { validate } from '../middleware/validator';
 
 const router = Router();
@@ -11,11 +16,11 @@ router.post('/', requirePatient, validateRequest(bookAppointmentSchema), (req, r
   appointmentController.bookAppointment(req, res)
 );
 
-router.get('/me', requirePatient, (req, res) =>
+router.get('/me', requirePatient, validate(appointmentQuerySchema, 'query'), (req, res) =>
   appointmentController.getMyAppointments(req, res)
 );
 
-router.get('/pending', requireDoctor, (req, res) =>
+router.get('/pending', requireDoctor, validate(appointmentQuerySchema, 'query'), (req, res) =>
   appointmentController.getPendingAppointments(req, res)
 );
 

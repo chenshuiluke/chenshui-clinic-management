@@ -36,13 +36,13 @@ export default class OrganizationUser extends BaseEntity {
   @Property({ type: "text", nullable: true })
   refreshToken?: string | null;
 
-  @OneToOne({ nullable: true, type: DoctorProfile })
+  @OneToOne({ nullable: true, type: DoctorProfile, owner: true })
   doctorProfile?: DoctorProfile;
 
-  @OneToOne({ nullable: true, type: PatientProfile })
+  @OneToOne({ nullable: true, type: PatientProfile, owner: true })
   patientProfile?: PatientProfile;
 
-  @OneToOne({ nullable: true, type: AdminProfile })
+  @OneToOne({ nullable: true, type: AdminProfile, owner: true })
   adminProfile?: AdminProfile;
 
   @BeforeCreate()

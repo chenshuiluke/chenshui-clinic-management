@@ -3,6 +3,7 @@ import { Migrator } from "@mikro-orm/migrations";
 import Organization from "./entities/central/organization";
 import { getOrgDbName, getOrgDbUser } from "./utils/organization";
 import { secretsManagerService } from "./services/secrets-manager.service";
+import { env } from "./config/env";
 
 export const getOrgConfig = async (organizationName: string) => {
   const dbName = getOrgDbName(organizationName);
@@ -30,7 +31,7 @@ export const getOrgConfig = async (organizationName: string) => {
     port: credentials.port,
     user: dbUser,
     password:
-      process.env.NODE_ENV === "production"
+      env.isProduction
         ? credentials.password
         : "testpassword",
     dbName: dbName,
@@ -46,7 +47,7 @@ export const getOrgConfig = async (organizationName: string) => {
     entitiesTs: ["./src/entities/**/*.ts"],
 
     // Enable debug mode to log SQL queries
-    debug: process.env.NODE_ENV !== "production",
+    debug: !env.isProduction,
 
     extensions: [Migrator],
 

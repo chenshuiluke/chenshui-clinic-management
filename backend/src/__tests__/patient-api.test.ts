@@ -38,6 +38,7 @@ describe("Patient API", () => {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
+      type: 'central'
     });
 
     // Create organization via API (this creates the database too)
@@ -71,7 +72,7 @@ describe("Patient API", () => {
       email: adminUser.email,
       name: `${adminUser.firstName} ${adminUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.ADMIN,
+      type: 'org'
     };
     adminToken = jwtService.generateAccessToken(adminPayload);
   });
@@ -610,7 +611,7 @@ describe("Patient API", () => {
         email: doctorUser.email,
         name: `${doctorUser.firstName} ${doctorUser.lastName}`,
         orgName: organizationName,
-        role: OrganizationUserRole.DOCTOR,
+        type: 'org'
       };
       const doctorToken = jwtService.generateAccessToken(doctorPayload);
 
@@ -665,7 +666,7 @@ describe("Patient API", () => {
         email: registerResponse.body.user.email,
         name: `${registerResponse.body.user.firstName} ${registerResponse.body.user.lastName}`,
         orgName: "Different Organization",
-        role: OrganizationUserRole.PATIENT,
+        type: 'org'
       };
       const mismatchedToken = jwtService.generateAccessToken(mismatchedPayload);
 
@@ -874,7 +875,7 @@ describe("Patient API", () => {
         email: doctorUser.email,
         name: `${doctorUser.firstName} ${doctorUser.lastName}`,
         orgName: organizationName,
-        role: OrganizationUserRole.DOCTOR,
+        type: 'org'
       };
       const doctorToken = jwtService.generateAccessToken(doctorPayload);
 

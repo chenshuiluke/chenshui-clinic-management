@@ -36,6 +36,7 @@ describe("Doctor API", () => {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
+      type: 'central'
     });
 
     // Create organization via API (this creates the database too)
@@ -69,7 +70,7 @@ describe("Doctor API", () => {
       email: adminUser.email,
       name: `${adminUser.firstName} ${adminUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.ADMIN,
+      type: 'org'
     };
     adminToken = jwtService.generateAccessToken(adminPayload);
   });
@@ -225,7 +226,7 @@ describe("Doctor API", () => {
         email: existingDoctor.email,
         name: `${existingDoctor.firstName} ${existingDoctor.lastName}`,
         orgName: organizationName,
-        role: OrganizationUserRole.DOCTOR,
+        type: 'org'
       };
       const doctorToken = jwtService.generateAccessToken(doctorPayload);
 
@@ -475,7 +476,7 @@ describe("Doctor API", () => {
         email: admin2User.email,
         name: `${admin2User.firstName} ${admin2User.lastName}`,
         orgName: org2Name,
-        role: OrganizationUserRole.ADMIN,
+        type: 'org'
       };
       const admin2Token = jwtService.generateAccessToken(admin2Payload);
 
@@ -559,7 +560,7 @@ describe("Doctor API", () => {
         email: "admin@hospital.com",
         name: "Admin User",
         orgName: "Different Organization",
-        role: OrganizationUserRole.ADMIN,
+        type: 'org'
       };
       const mismatchedToken = jwtService.generateAccessToken(mismatchedPayload);
 

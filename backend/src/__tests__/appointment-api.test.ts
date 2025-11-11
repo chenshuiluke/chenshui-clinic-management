@@ -49,6 +49,7 @@ describe("Appointment API", () => {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
+      type: 'central'
     });
 
     // Create organization via API (this creates the database too)
@@ -148,7 +149,7 @@ describe("Appointment API", () => {
       email: adminUser.email,
       name: `${adminUser.firstName} ${adminUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.ADMIN,
+      type: 'org'
     };
     adminToken = jwtService.generateAccessToken(adminPayload);
 
@@ -157,7 +158,7 @@ describe("Appointment API", () => {
       email: doctorUser.email,
       name: `${doctorUser.firstName} ${doctorUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.DOCTOR,
+      type: 'org'
     };
     doctorToken = jwtService.generateAccessToken(doctorPayload);
 
@@ -166,7 +167,7 @@ describe("Appointment API", () => {
       email: secondDoctorUser.email,
       name: `${secondDoctorUser.firstName} ${secondDoctorUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.DOCTOR,
+      type: 'org'
     };
     secondDoctorToken = jwtService.generateAccessToken(secondDoctorPayload);
 
@@ -175,7 +176,7 @@ describe("Appointment API", () => {
       email: patientUser.email,
       name: `${patientUser.firstName} ${patientUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.PATIENT,
+      type: 'org'
     };
     patientToken = jwtService.generateAccessToken(patientPayload);
 
@@ -184,7 +185,7 @@ describe("Appointment API", () => {
       email: secondPatientUser.email,
       name: `${secondPatientUser.firstName} ${secondPatientUser.lastName}`,
       orgName: organizationName,
-      role: OrganizationUserRole.PATIENT,
+      type: 'org'
     };
     secondPatientToken = jwtService.generateAccessToken(secondPatientPayload);
 
@@ -375,7 +376,7 @@ describe("Appointment API", () => {
       const response = await request(app)
         .get(`/${organizationName}/appointments/me`)
         .set("Authorization", `Bearer ${patientToken}`)
-        .expect(200);
+      expect(response.status).to.equal(200);
 
       expect(response.body.appointments, `Expected appointments array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
       expect(response.body).to.have.property("total");

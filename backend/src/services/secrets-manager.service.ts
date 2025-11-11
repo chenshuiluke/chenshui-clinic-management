@@ -7,20 +7,20 @@ import {
   DeleteSecretCommandInput,
   GetSecretValueCommandInput,
 } from "@aws-sdk/client-secrets-manager";
+import { env } from "../config/env";
 
 class SecretsManagerService {
   private client: SecretsManagerClient;
   private isMockMode: boolean;
-  private mockSecrets: Set<string> = new Set();
+  private mockSecrets: Map<string, Record<string, any>> = new Map();
 
   constructor() {
-    const env = process.env.NODE_ENV || "development";
-    this.isMockMode = env === "test" || env === "development";
+    this.isMockMode = env.isMockMode;
 
     if (this.isMockMode) {
       // In test/development mode, create a mock client that doesn't make real AWS calls
       console.log(
-        `[SecretsManager] Running in ${env} mode - using mock client`,
+        `[SecretsManagerService] Running in ${env.nodeEnv} mode - using mock client`,
       );
       this.client = this.createMockClient();
     } else {
@@ -50,9 +50,15 @@ class SecretsManagerService {
           error.name = 'ResourceExistsException';
           throw error;
         }
-        // Add to mock secrets set
-        if (command.input.Name) {
-          this.mockSecrets.add(command.input.Name);
+        // Parse and store the secret value
+        if (command.input.Name && command.input.SecretString) {
+          try {
+            const secretValue = JSON.parse(command.input.SecretString);
+            this.mockSecrets.set(command.input.Name, secretValue);
+          } catch (e) {
+            // If not valid JSON, store as-is
+            this.mockSecrets.set(command.input.Name, { value: command.input.SecretString });
+          }
         }
         return {
           ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.Name}`,
@@ -63,7 +69,7 @@ class SecretsManagerService {
         console.log(
           `[SecretsManager Mock] DeleteSecret called with id: ${command.input.SecretId}`,
         );
-        // Remove from mock secrets set
+        // Remove from mock secrets map
         if (command.input.SecretId) {
           this.mockSecrets.delete(command.input.SecretId);
         }
@@ -76,18 +82,21 @@ class SecretsManagerService {
         console.log(
           `[SecretsManager Mock] GetSecretValue called with id: ${command.input.SecretId}`,
         );
-        // Return a mock secret value with typical database credentials structure
+        // Check if we have a stored secret value
+        if (command.input.SecretId && this.mockSecrets.has(command.input.SecretId)) {
+          const secretValue = this.mockSecrets.get(command.input.SecretId);
+          return {
+            ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.SecretId}`,
+            Name: command.input.SecretId ?? 'unknown',
+            SecretString: JSON.stringify(secretValue),
+            VersionId: "mock-version-id",
+          };
+        }
+        // Return null if secret not found (will trigger error in getOrgConfig)
         return {
           ARN: `arn:aws:secretsmanager:us-east-1:123456789012:secret:${command.input.SecretId}`,
           Name: command.input.SecretId ?? 'unknown',
-          SecretString: JSON.stringify({
-            username: "mock_user",
-            password: "mock_password",
-            engine: "postgres",
-            host: process.env.DB_HOST || "localhost",
-            port: parseInt(process.env.DB_PORT || "5432"),
-            dbname: "mock_db",
-          }),
+          SecretString: null,
           VersionId: "mock-version-id",
         };
       }
@@ -125,6 +134,14 @@ class SecretsManagerService {
       console.log('[SecretsManager Mock] Clearing mock secrets set');
       this.mockSecrets.clear();
     }
+  }
+
+  public setMockSecret(secretId: string, value: Record<string, any>): void {
+    if (!this.isMockMode) {
+      throw new Error('setMockSecret can only be called in mock mode');
+    }
+    this.mockSecrets.set(secretId, value);
+    console.log(`[SecretsManager Mock] Set mock secret for ${secretId}`);
   }
 }
 

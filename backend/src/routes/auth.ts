@@ -3,6 +3,12 @@ import authController from "../controllers/auth";
 import { validateRequest } from "../middleware/validator";
 import { authenticate } from "../middleware/auth";
 import {
+  authRateLimit,
+  registrationRateLimit,
+  refreshTokenRateLimit,
+  sensitiveOperationRateLimit
+} from "../middleware/rate-limit";
+import {
   loginSchema,
   registerSchema,
   refreshTokenSchema,
@@ -15,15 +21,15 @@ import {
 
 const router = Router();
 
-router.post("/login", validateRequest(loginSchema), (req, res) =>
+router.post("/login", authRateLimit, validateRequest(loginSchema), (req, res) =>
   authController.login(req, res),
 );
 
-router.post("/register", validateRequest(registerSchema), (req, res) =>
+router.post("/register", registrationRateLimit, validateRequest(registerSchema), (req, res) =>
   authController.register(req, res),
 );
 
-router.post("/refresh", validateRequest(refreshTokenSchema), (req, res) =>
+router.post("/refresh", refreshTokenRateLimit, validateRequest(refreshTokenSchema), (req, res) =>
   authController.refreshToken(req, res),
 );
 
@@ -33,7 +39,7 @@ router.post("/logout", authenticate, (req, res) =>
   authController.logout(req, res),
 );
 
-router.post("/verify", authenticate, validateRequest(verifyUserSchema), (req, res) =>
+router.post("/verify", authenticate, sensitiveOperationRateLimit, validateRequest(verifyUserSchema), (req, res) =>
   authController.verify(req, res),
 );
 

@@ -1,5 +1,6 @@
 import { defineConfig } from "@mikro-orm/postgresql";
 import { Migrator } from "@mikro-orm/migrations";
+import { env } from "./config/env";
 
 const config = defineConfig({
   logger: (message: string) => {
@@ -15,7 +16,7 @@ const config = defineConfig({
   driverOptions: {
     connection: {
       ssl:
-        process.env.NODE_ENV === "production"
+        env.isProduction
           ? { rejectUnauthorized: false }
           : false,
     },
@@ -26,7 +27,7 @@ const config = defineConfig({
   entitiesTs: ["./src/entities/central/*.ts", "./src/entities/base.ts"],
 
   // Enable debug mode to log SQL queries
-  debug: process.env.NODE_ENV !== "production",
+  debug: !env.isProduction,
 
   extensions: [Migrator],
 

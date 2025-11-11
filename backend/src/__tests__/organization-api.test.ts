@@ -50,6 +50,7 @@ describe("Organization API", () => {
       userId: user.id,
       email: user.email,
       name: user.name,
+      type: 'central'
     });
   });
 

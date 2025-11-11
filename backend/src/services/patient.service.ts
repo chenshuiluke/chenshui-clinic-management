@@ -1,7 +1,8 @@
 import { EntityManager } from '@mikro-orm/core';
-import OrganizationUser, { OrganizationUserRole } from '../entities/distributed/organization_user';
+import OrganizationUser from '../entities/distributed/organization_user';
 import PatientProfile from '../entities/distributed/patient_profile';
 import jwtService from './jwt.service';
+import cryptoService from '../utils/crypto';
 import { OrgJWTPayload } from '../config/jwt.config';
 import { emailService } from './email.service';
 
@@ -49,14 +50,14 @@ class PatientService {
       userId: organizationUser.id,
       email: organizationUser.email,
       name: `${organizationUser.firstName} ${organizationUser.lastName}`,
-      orgName: organizationName,
-      role: OrganizationUserRole.PATIENT,
+      type: 'org',
+      orgName: organizationName
     };
 
-    const { accessToken, refreshToken } = jwtService.generateTokenPair(payload);
+    const { accessToken, refreshToken, refreshTokenPlain } = jwtService.generateTokenPair(payload);
 
-    // Store refresh token on user entity
-    organizationUser.refreshToken = refreshToken;
+    // Store hashed refresh token on user entity
+    organizationUser.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
     await em.flush();
 
     // Send welcome email (don't block on failure)

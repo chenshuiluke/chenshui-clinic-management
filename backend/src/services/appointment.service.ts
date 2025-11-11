@@ -17,7 +17,16 @@ class AppointmentService {
       throw new Error('User is not a doctor');
     }
 
+    // Validate date format (ISO 8601)
     const parsedDate = new Date(appointmentDateTime);
+    if (isNaN(parsedDate.getTime())) {
+      throw new Error('Invalid appointment date format');
+    }
+
+    // Ensure date is in the future
+    if (parsedDate <= new Date()) {
+      throw new Error('Appointment date must be in the future');
+    }
 
     const appointment = em.create(Appointment, {
       patient,

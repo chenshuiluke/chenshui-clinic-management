@@ -8,6 +8,12 @@ before(async function () {
 
 // Global beforeEach - clears database before each test
 beforeEach(async function () {
+  // Ensure NODE_ENV is 'test' for all tests unless explicitly changed
+  // This prevents rate limiting from interfering with tests
+  if (process.env.NODE_ENV !== 'test') {
+    process.env.NODE_ENV = 'test';
+  }
+
   await clearDatabase(getOrm());
 });
 

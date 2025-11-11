@@ -3,6 +3,8 @@ import { RequestContext } from "@mikro-orm/core";
 import OrganizationUser from "../entities/distributed/organization_user";
 import jwtService from "../services/jwt.service";
 import { OrgJWTPayload } from "../config/jwt.config";
+import cryptoService from "../utils/crypto";
+import { securityLogger } from "../utils/logger";
 import { OrgLoginDto, OrgRefreshTokenDto } from "../validators/auth";
 
 export class OrgAuthController {
@@ -10,6 +12,7 @@ export class OrgAuthController {
     try {
       const { email, password }: OrgLoginDto = req.body;
       const em = RequestContext.getEntityManager()!;
+      const ip = req.ip || 'unknown';
 
       const user = await em.findOne(
         OrganizationUser,
@@ -17,10 +20,15 @@ export class OrgAuthController {
         { populate: ["adminProfile", "doctorProfile", "patientProfile"] }
       );
 
-      if (
-        !user ||
-        !(await jwtService.comparePassword(password, user.password))
-      ) {
+      if (!user) {
+        securityLogger.loginFailed(email, `User not found in org ${req.organization}`, ip);
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      const passwordValid = await jwtService.comparePassword(password, user.password);
+      if (!passwordValid) {
+        securityLogger.loginFailed(email, `Invalid password in org ${req.organization}`, ip);
         res.status(401).json({ error: "Invalid credentials" });
         return;
       }
@@ -29,15 +37,18 @@ export class OrgAuthController {
         userId: user.id,
         email: user.email,
         name: `${user.firstName} ${user.lastName}`,
-        orgName: req.organization!,
-        role: user.getRole(),
+        type: 'org',
+        orgName: req.organization!
       };
 
-      const { accessToken, refreshToken } =
+      const { accessToken, refreshToken, refreshTokenPlain } =
         jwtService.generateTokenPair(payload);
 
-      user.refreshToken = refreshToken;
+      // Hash the plain refresh token for storage
+      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
       await em.flush();
+
+      securityLogger.loginAttempt(email, true, ip);
 
       res.json({
         accessToken,
@@ -60,29 +71,48 @@ export class OrgAuthController {
     try {
       const { refreshToken }: OrgRefreshTokenDto = req.body;
 
+      // Parse the refresh token
+      let tokenParts;
       let decoded;
       try {
-        decoded = jwtService.verifyRefreshToken(refreshToken);
+        tokenParts = jwtService.parseRefreshToken(refreshToken);
+        decoded = jwtService.verifyRefreshToken(tokenParts.jwt);
       } catch (error) {
         res.status(401).json({ error: "Invalid refresh token" });
         return;
       }
 
-      // Validate that the token's orgName matches the current organization context
-      if (!('orgName' in decoded)) {
+      // Validate that it's an org token
+      if (decoded.type !== 'org') {
         res.status(401).json({ error: "Invalid refresh token: organization token required" });
         return;
       }
 
+      // Validate that the token's orgName matches the current organization context
       if (decoded.orgName !== req.organization) {
         res.status(401).json({ error: "Invalid refresh token: organization mismatch" });
         return;
       }
 
       const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(OrganizationUser, { id: decoded.userId });
+      const user = await em.findOne(
+        OrganizationUser,
+        { id: decoded.userId },
+        { populate: ["adminProfile", "doctorProfile", "patientProfile"] }
+      );
 
-      if (!user || user.refreshToken !== refreshToken) {
+      if (!user || !user.refreshToken) {
+        res.status(401).json({ error: "Invalid refresh token" });
+        return;
+      }
+
+      // Verify the plain token against the stored hash
+      const isValidToken = await cryptoService.verifyRefreshToken(
+        tokenParts.plain,
+        user.refreshToken
+      );
+
+      if (!isValidToken) {
         res.status(401).json({ error: "Invalid refresh token" });
         return;
       }
@@ -91,13 +121,27 @@ export class OrgAuthController {
         userId: user.id,
         email: user.email,
         name: `${user.firstName} ${user.lastName}`,
-        orgName: req.organization!,
-        role: user.getRole(),
+        type: 'org',
+        orgName: req.organization!
       };
 
-      const accessToken = jwtService.generateAccessToken(payload);
+      // Generate new token pair (rotation)
+      const {
+        accessToken,
+        refreshToken: newRefreshToken,
+        refreshTokenPlain
+      } = jwtService.generateTokenPair(payload);
 
-      res.json({ accessToken });
+      // Update stored refresh token hash
+      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
+      await em.flush();
+
+      securityLogger.tokenRefreshed(user.id, req.organization);
+
+      res.json({
+        accessToken,
+        refreshToken: newRefreshToken // Return new refresh token for rotation
+      });
     } catch (error) {
       res.status(401).json({ error: "Invalid refresh token" });
     }
@@ -114,6 +158,8 @@ export class OrgAuthController {
         user.refreshToken = null;
         await em.flush();
       }
+
+      securityLogger.logout(req.user!.userId, req.organization);
 
       res.json({ message: "Logged out successfully" });
     } catch (error) {

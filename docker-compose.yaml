@@ -48,8 +48,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      sqs:
-        condition: service_healthy
     command: sh -c "npm install && npm run dev"
 
   # Frontend Service

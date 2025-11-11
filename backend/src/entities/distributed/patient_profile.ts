@@ -1,5 +1,6 @@
-import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Property, ManyToOne, OneToOne } from "@mikro-orm/core";
 import BaseEntity from "../base";
+import OrganizationUser from "./organization_user";
 
 @Entity()
 export default class PatientProfile extends BaseEntity {
@@ -29,4 +30,7 @@ export default class PatientProfile extends BaseEntity {
 
   @Property({ type: 'string' })
   ipAddress!: string;
+
+  @OneToOne(() => OrganizationUser, { mappedBy: 'patientProfile' })
+  user?: OrganizationUser;
 }

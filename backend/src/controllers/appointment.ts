@@ -16,7 +16,7 @@ class AppointmentController extends BaseController {
 
       try {
         const result = await appointmentService.bookAppointment(
-          this.em,
+          this.getEm(req),
           patient,
           doctorId,
           appointmentDateTime,
@@ -49,7 +49,7 @@ class AppointmentController extends BaseController {
       const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
 
       const result = await appointmentService.getPatientAppointments(
-        this.em,
+        this.getEm(req),
         patient,
         limit,
         offset
@@ -75,7 +75,7 @@ class AppointmentController extends BaseController {
       const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
 
       const result = await appointmentService.getDoctorPendingAppointments(
-        this.em,
+        this.getEm(req),
         doctor,
         limit,
         offset
@@ -99,7 +99,7 @@ class AppointmentController extends BaseController {
       }
 
       try {
-        const result = await appointmentService.approveAppointment(this.em, id, doctor);
+        const result = await appointmentService.approveAppointment(this.getEm(req), id, doctor);
         res.status(200).json(result);
       } catch (error: any) {
         if (error.message === 'Appointment not found') {
@@ -133,7 +133,7 @@ class AppointmentController extends BaseController {
       }
 
       try {
-        const result = await appointmentService.declineAppointment(this.em, id, doctor);
+        const result = await appointmentService.declineAppointment(this.getEm(req), id, doctor);
         res.status(200).json(result);
       } catch (error: any) {
         if (error.message === 'Appointment not found') {
@@ -167,7 +167,7 @@ class AppointmentController extends BaseController {
       }
 
       try {
-        const result = await appointmentService.cancelAppointment(this.em, id, patient);
+        const result = await appointmentService.cancelAppointment(this.getEm(req), id, patient);
         res.status(200).json(result);
       } catch (error: any) {
         if (error.message === 'Appointment not found') {
@@ -201,7 +201,7 @@ class AppointmentController extends BaseController {
       }
 
       try {
-        const result = await appointmentService.completeAppointment(this.em, id, doctor);
+        const result = await appointmentService.completeAppointment(this.getEm(req), id, doctor);
         res.status(200).json(result);
       } catch (error: any) {
         if (error.message === 'Appointment not found') {

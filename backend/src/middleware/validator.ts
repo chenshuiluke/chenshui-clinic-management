@@ -33,7 +33,19 @@ export function validate(
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = await schema.parseAsync(req[source]);
-      req[source] = validated;
+
+      // For query and params, we need to redefine the property since they're read-only getters
+      if (source === "query" || source === "params") {
+        Object.defineProperty(req, source, {
+          value: validated,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      } else {
+        req[source] = validated;
+      }
+
       next();
     } catch (error) {
       if (error instanceof ZodError) {
