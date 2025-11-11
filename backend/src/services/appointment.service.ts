@@ -137,13 +137,68 @@ class AppointmentService {
         id: appointment.id,
         appointmentDateTime: appointment.appointmentDateTime,
         status: appointment.status,
-        notes: appointment.notes ?? '',
+        notes: appointment.notes ?? null,
         patient: {
           id: appointment.patient!.id,
           firstName: appointment.patient!.firstName,
           lastName: appointment.patient!.lastName,
           dateOfBirth: appointment.patient!.patientProfile?.dateOfBirth ?? '',
           phoneNumber: appointment.patient!.patientProfile?.phoneNumber ?? '',
+          allergies: appointment.patient!.patientProfile?.allergies ?? null,
+          chronicConditions: appointment.patient!.patientProfile?.chronicConditions ?? null,
+        },
+        createdAt: appointment.createdAt,
+      })),
+      total,
+      limit,
+      offset,
+    };
+  }
+
+  async getDoctorAppointments(em: EntityManager, doctor: OrganizationUser, limit?: number, offset?: number, status?: AppointmentStatus) {
+    const findOptions: any = {
+      populate: ['patient', 'patient.patientProfile'],
+      orderBy: { appointmentDateTime: 'DESC' },
+    };
+
+    if (limit !== undefined) {
+      findOptions.limit = limit;
+    }
+
+    if (offset !== undefined) {
+      findOptions.offset = offset;
+    }
+
+    // Build dynamic filter
+    const filter: any = { doctor };
+    if (status !== undefined) {
+      filter.status = status;
+    }
+
+    const appointments = await em.find(
+      Appointment,
+      filter,
+      findOptions
+    );
+
+    const total = await em.count(Appointment, filter);
+
+    const validAppointments = appointments.filter(apt => apt.patient !== null);
+
+    return {
+      appointments: validAppointments.map((appointment) => ({
+        id: appointment.id,
+        appointmentDateTime: appointment.appointmentDateTime,
+        status: appointment.status,
+        notes: appointment.notes ?? null,
+        patient: {
+          id: appointment.patient!.id,
+          firstName: appointment.patient!.firstName,
+          lastName: appointment.patient!.lastName,
+          dateOfBirth: appointment.patient!.patientProfile?.dateOfBirth ?? '',
+          phoneNumber: appointment.patient!.patientProfile?.phoneNumber ?? '',
+          allergies: appointment.patient!.patientProfile?.allergies ?? null,
+          chronicConditions: appointment.patient!.patientProfile?.chronicConditions ?? null,
         },
         createdAt: appointment.createdAt,
       })),
@@ -157,7 +212,7 @@ class AppointmentService {
     const appointment = await em.findOne(
       Appointment,
       { id: appointmentId },
-      { populate: ['patient', 'doctor'] }
+      { populate: ['patient', 'patient.patientProfile', 'doctor'] }
     );
 
     if (!appointment || !appointment.patient || !appointment.doctor) {
@@ -192,12 +247,17 @@ class AppointmentService {
       id: appointment.id,
       appointmentDateTime: appointment.appointmentDateTime,
       status: appointment.status,
-      notes: (appointment.notes || '') as string,
+      notes: appointment.notes ?? null,
       patient: {
         id: appointment.patient.id,
         firstName: appointment.patient.firstName,
         lastName: appointment.patient.lastName,
+        dateOfBirth: appointment.patient.patientProfile?.dateOfBirth ?? '',
+        phoneNumber: appointment.patient.patientProfile?.phoneNumber ?? '',
+        allergies: appointment.patient.patientProfile?.allergies ?? null,
+        chronicConditions: appointment.patient.patientProfile?.chronicConditions ?? null,
       },
+      createdAt: appointment.createdAt,
     };
   }
 
@@ -205,7 +265,7 @@ class AppointmentService {
     const appointment = await em.findOne(
       Appointment,
       { id: appointmentId },
-      { populate: ['patient', 'doctor'] }
+      { populate: ['patient', 'patient.patientProfile', 'doctor'] }
     );
 
     if (!appointment || !appointment.patient || !appointment.doctor) {
@@ -240,12 +300,17 @@ class AppointmentService {
       id: appointment.id,
       appointmentDateTime: appointment.appointmentDateTime,
       status: appointment.status,
-      notes: (appointment.notes || '') as string,
+      notes: appointment.notes ?? null,
       patient: {
         id: appointment.patient.id,
         firstName: appointment.patient.firstName,
         lastName: appointment.patient.lastName,
+        dateOfBirth: appointment.patient.patientProfile?.dateOfBirth ?? '',
+        phoneNumber: appointment.patient.patientProfile?.phoneNumber ?? '',
+        allergies: appointment.patient.patientProfile?.allergies ?? null,
+        chronicConditions: appointment.patient.patientProfile?.chronicConditions ?? null,
       },
+      createdAt: appointment.createdAt,
     };
   }
 
@@ -302,7 +367,7 @@ class AppointmentService {
     const appointment = await em.findOne(
       Appointment,
       { id: appointmentId },
-      { populate: ['patient', 'doctor'] }
+      { populate: ['patient', 'patient.patientProfile', 'doctor'] }
     );
 
     if (!appointment || !appointment.patient || !appointment.doctor) {
@@ -337,12 +402,17 @@ class AppointmentService {
       id: appointment.id,
       appointmentDateTime: appointment.appointmentDateTime,
       status: appointment.status,
-      notes: (appointment.notes || '') as string,
+      notes: appointment.notes ?? null,
       patient: {
         id: appointment.patient.id,
         firstName: appointment.patient.firstName,
         lastName: appointment.patient.lastName,
+        dateOfBirth: appointment.patient.patientProfile?.dateOfBirth ?? '',
+        phoneNumber: appointment.patient.patientProfile?.phoneNumber ?? '',
+        allergies: appointment.patient.patientProfile?.allergies ?? null,
+        chronicConditions: appointment.patient.patientProfile?.chronicConditions ?? null,
       },
+      createdAt: appointment.createdAt,
     };
   }
 }

@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { createOrgApiClient } from './client';
-import { PatientProfile, PatientRegisterRequest, UpdatePatientProfileRequest } from '../types/api';
-import { LoginResponse } from '../types/auth';
+import type { PatientProfile, PatientRegisterRequest, UpdatePatientProfileRequest } from '../types/api';
+import type { LoginResponse, OrganizationUser } from '../types/auth';
 
-export const registerPatient = async (orgName: string, data: PatientRegisterRequest): Promise<LoginResponse> => {
+export const registerPatient = async (orgName: string, data: PatientRegisterRequest): Promise<LoginResponse<OrganizationUser>> => {
   try {
     const client = createOrgApiClient(orgName);
     const response = await client.post('/patients/register', data);

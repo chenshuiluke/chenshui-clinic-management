@@ -1,0 +1,34 @@
+{
+  "centralAdmin": {
+    "email": "admin@test.com",
+    "name": "Test Admin",
+    "password": "TestPassword123!@#"
+  },
+  "orgAdmin": {
+    "email": "orgadmin@hospital.com",
+    "firstName": "Org",
+    "lastName": "Admin",
+    "password": "AdminPass123!@#"
+  },
+  "doctor": {
+    "email": "doctor@hospital.com",
+    "firstName": "John",
+    "lastName": "Smith",
+    "password": "password123",
+    "specialization": "Cardiology",
+    "licenseNumber": "MD123456",
+    "phoneNumber": "555-1234"
+  },
+  "patient": {
+    "email": "patient@hospital.com",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "password": "password123",
+    "dateOfBirth": "1990-01-15",
+    "phoneNumber": "5551234567",
+    "address": "123 Main St",
+    "bloodType": "A+",
+    "allergies": "None",
+    "chronicConditions": "None"
+  }
+}

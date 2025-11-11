@@ -1,5 +1,4 @@
 // Central Admin Login page
-
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Alert, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -19,16 +18,15 @@ export const AdminLogin: React.FC = () => {
   const { login, error } = useCentralAuth();
   const [loading, setLoading] = useState(false);
 
-  const onFinish = async (values: LoginFormValues) => {
-    try {
-      setLoading(true);
-      await login(values.email, values.password);
+  const handleSubmit = async (values: LoginFormValues) => {
+    setLoading(true);
+        debugger; ///@@@
+    const success = await login(values.email, values.password);
+
+    if (success) {
       navigate(ROUTES.ADMIN_DASHBOARD);
-    } catch (err) {
-      // Error is handled by context and displayed via error state
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
@@ -43,7 +41,7 @@ export const AdminLogin: React.FC = () => {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={2}>Central Admin Login</Title>
         </div>
-
+        
         {error && (
           <Alert
             message="Login Failed"
@@ -58,7 +56,7 @@ export const AdminLogin: React.FC = () => {
         <Form
           form={form}
           name="admin-login"
-          onFinish={onFinish}
+          onFinish={handleSubmit}
           layout="vertical"
           autoComplete="off"
         >
@@ -70,7 +68,7 @@ export const AdminLogin: React.FC = () => {
               { type: 'email', message: 'Please enter a valid email address!' }
             ]}
           >
-            <Input placeholder="admin@example.com" size="large" />
+            <Input name="email" placeholder="admin@example.com" size="large" />
           </Form.Item>
 
           <Form.Item
@@ -78,10 +76,10 @@ export const AdminLogin: React.FC = () => {
             name="password"
             rules={[
               { required: true, message: 'Please input your password!' },
-              { min: 8, message: 'Password must be at least 8 characters!' }
+              { min: 8, message: 'Password must be at least 8 characters!' } // @@@ TODO: Adjust password policy to match backend requirements
             ]}
           >
-            <Input.Password placeholder="Enter your password" size="large" />
+            <Input.Password name="password" placeholder="Enter your password" size="large" />
           </Form.Item>
 
           <Form.Item>

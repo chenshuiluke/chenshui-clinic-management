@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Space, Typography, message, notification } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
-import { useOrgAuth } from '../../contexts/OrgAuthContext';
 import { RoleGuard } from '../../components/guards/RoleGuard';
-import { Doctor } from '../../types/api';
+import type { Doctor } from '../../types/api';
 import { getAllDoctors, createDoctor } from '../../api/doctor';
 import type { ColumnsType } from 'antd/es/table';
 

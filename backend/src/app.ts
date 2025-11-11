@@ -61,7 +61,7 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
     : isDevelopment
-      ? ['http://localhost:3000', 'http://localhost:3001'] // Default for development only
+      ? ['http://localhost:5173', 'http://frontend:5173'] // Default for development only
       : []; // Empty array in non-development if not configured
 
   // Throw error if no CORS origins configured in production
@@ -116,6 +116,11 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
   // General API rate limiting
   app.use(generalApiRateLimit);
 
+  // MikroORM RequestContext middleware for central database
+  app.use((req, res, next) => {
+    RequestContext.create(orm.em, next);
+  });
+
   // Apply organization context middleware
   app.use(orgContext);
 
@@ -123,6 +128,7 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
   app.get("/healthz", (req: Request, res: Response) => {
     res.status(200).send("OK");
   });
+
 
   app.get("/", (req: Request, res: Response) => {
     res.json({ message: "Server is running" });
@@ -177,21 +183,66 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
 
 export async function bootstrap(port = 3000) {
   dotenv.config();
-  const centralOrm = await getOrm();
-  await runMigrations(centralOrm);
-  const existingOrgs = await centralOrm.em.fork().find(Organization, {});
-  await runMigrationsForDistributedDbs(existingOrgs, false);
-  const app = await createApp(centralOrm);
 
-  process.on("SIGTERM", async () => {
-    await closeAllOrgConnections();
-    await centralOrm.close();
-    process.exit(0);
-  });
+  console.log('Bootstrapping application...');
+  console.log('Environment:', process.env.NODE_ENV || 'development');
 
-  return new Promise<express.Application>((resolve) => {
-    app.listen(port, () => {
-      resolve(app);
+  try {
+    // Initialize database connection with retry logic
+    console.log('Connecting to central database...');
+    console.log('Database config:', {
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'clinic_db'
     });
-  });
+    const centralOrm = await getOrm();
+    console.log('Central database connection established successfully');
+
+    // Run migrations
+    console.log('Running migrations...');
+    await runMigrations(centralOrm);
+    console.log(`Migrations completed successfully`);
+
+    // Setup organization databases
+    console.log('Setting up organization databases...');
+    const existingOrgs = await centralOrm.em.fork().find(Organization, {});
+    console.log(`Found ${existingOrgs.length} existing organization(s)`);
+    await runMigrationsForDistributedDbs(existingOrgs, false);
+    console.log(`Organization databases ready. Initialized ${existingOrgs.length} organization database(s)`);
+
+    // Create Express app
+    console.log('Creating Express application...');
+    const app = await createApp(centralOrm);
+    console.log('Express application created successfully');
+
+    process.on("SIGTERM", async () => {
+      console.log('Received SIGTERM, shutting down gracefully...');
+      await closeAllOrgConnections();
+      await centralOrm.close();
+      process.exit(0);
+    });
+
+    console.log('All initialization steps completed successfully');
+
+    return new Promise<express.Application>((resolve) => {
+      app.listen(port, () => {
+        console.log(`Server listening on port ${port}`);
+        console.log('Server startup complete');
+        resolve(app);
+      });
+    });
+  } catch (error) {
+    console.error('Bootstrap failed:', {
+      step: 'initialization',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        DB_HOST: process.env.DB_HOST,
+        DB_PORT: process.env.DB_PORT,
+        DB_NAME: process.env.DB_NAME
+      }
+    });
+    throw error;
+  }
 }

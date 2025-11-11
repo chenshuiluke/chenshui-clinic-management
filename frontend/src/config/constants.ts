@@ -34,8 +34,8 @@ export const ROUTES = {
   ORG_DOCTORS: '/:orgName/doctors',
   ORG_PATIENTS: '/:orgName/patients',
   ORG_APPOINTMENTS: '/:orgName/appointments',
-  ORG_BOOK_APPOINTMENT: '/:orgName/book-appointment',
-  ORG_MY_APPOINTMENTS: '/:orgName/my-appointments',
+  ORG_BOOK_APPOINTMENT: '/:orgName/patient/appointments/book',
+  ORG_MY_APPOINTMENTS: '/:orgName/patient/appointments',
   ORG_PROFILE: '/:orgName/profile',
 } as const;
 

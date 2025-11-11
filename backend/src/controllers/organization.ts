@@ -24,8 +24,11 @@ export default class OrganizationController extends BaseController {
     let dbCreated = false;
     const orgName = req.body.name;
 
+    console.log(`Creating organization: ${orgName}`);
+
     try {
       // Check if organization with this name already exists FIRST
+      console.log(`Checking for existing organization: ${orgName}`);
       const existingOrganization = await this.em.findOne(Organization, { name: orgName });
       if (existingOrganization) {
         return res.status(409).json({
@@ -37,12 +40,14 @@ export default class OrganizationController extends BaseController {
       const organization = this.em.create(Organization, req.body);
 
       // Create the organization's dedicated database and credentials
+      console.log(`Creating database for organization: ${organization.name}`);
       const dbResult = await createOrganizationDb(organization.name);
       dbCreated = true;
+      console.log(`Database created successfully: ${dbResult.dbName}`);
 
       // Run migrations on the newly created database
       try {
-        console.log(`Running migrations for organization: ${organization.name}`);
+        console.log(`Starting migrations for organization: ${organization.name}`);
         await runMigrationsForSingleDistributedDb(organization, false);
         console.log(`Migrations completed successfully for: ${organization.name}`);
       } catch (migrationError) {

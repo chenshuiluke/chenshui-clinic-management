@@ -79,17 +79,37 @@ export async function getOrgOrm(orgName: string): Promise<MikroORM> {
   console.log(
     `Creating new ORM instance for organization: ${orgName} (database: ${dbName})`,
   );
-  const orm = await MikroORM.init({
-    ...(await getOrgConfig(orgName)),
-  });
+
+  // Retry logic for database connection
+  let orm: MikroORM;
+  const maxRetries = 10;
+  const delay = 2000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempting to connect to org database (attempt ${attempt}/${maxRetries})...`);
+      orm = await MikroORM.init({
+        ...(await getOrgConfig(orgName)),
+      });
+      console.log(`Successfully connected to org database: ${dbName}`);
+      break;
+    } catch (error) {
+      console.error(`Org database connection attempt ${attempt} failed:`, error);
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 
   // Cache it with timestamp
   orgOrmCache.set(orgName, {
-    orm,
+    orm: orm!,
     createdAt: new Date(),
   });
 
-  return orm;
+  return orm!;
 }
 
 /**

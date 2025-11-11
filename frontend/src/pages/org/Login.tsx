@@ -20,7 +20,8 @@ export const OrgLogin: React.FC = () => {
   const { login, error } = useOrgAuth();
   const [loading, setLoading] = useState(false);
 
-  const onFinish = async (values: LoginFormValues) => {
+  const onFinish = async (values: LoginFormValues, e?: React.FormEvent) => {
+    e?.preventDefault(); // Explicitly prevent default form submission
     if (!orgName) {
       return;
     }
@@ -30,6 +31,7 @@ export const OrgLogin: React.FC = () => {
       await login(orgName, values.email, values.password);
       navigate(buildOrgRoute(orgName, ROUTES.ORG_DASHBOARD));
     } catch (err) {
+      console.error('Login error:', err); // Add logging for debugging
       // Error is handled by context and displayed via error state
     } finally {
       setLoading(false);
@@ -86,6 +88,9 @@ export const OrgLogin: React.FC = () => {
           form={form}
           name="org-login"
           onFinish={onFinish}
+          onFinishFailed={(errorInfo) => {
+            console.error('Form validation failed:', errorInfo);
+          }}
           layout="vertical"
           autoComplete="off"
         >
@@ -97,7 +102,7 @@ export const OrgLogin: React.FC = () => {
               { type: 'email', message: 'Please enter a valid email address!' }
             ]}
           >
-            <Input placeholder="your.email@example.com" size="large" />
+            <Input name="email" placeholder="your.email@example.com" size="large" />
           </Form.Item>
 
           <Form.Item
@@ -108,7 +113,7 @@ export const OrgLogin: React.FC = () => {
               { min: 8, message: 'Password must be at least 8 characters!' }
             ]}
           >
-            <Input.Password placeholder="Enter your password" size="large" />
+            <Input.Password name="password" placeholder="Enter your password" size="large" />
           </Form.Item>
 
           <Form.Item>

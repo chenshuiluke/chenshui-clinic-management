@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "cypress:run:chrome": "cypress run --browser chrome",
+    "cypress:run:firefox": "cypress run --browser firefox",
+    "cypress:docker": "docker compose -f ../docker-compose.cypress.yaml up --build --abort-on-container-exit --exit-code-from cypress",
+    "cypress:docker:down": "docker compose -f ../docker-compose.cypress.yaml down -v",
+    "cypress:docker:logs": "docker compose -f ../docker-compose.cypress.yaml logs -f"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -20,12 +27,14 @@
     "tailwindcss": "^4.1.14"
   },
   "devDependencies": {
+    "@cypress/grep": "^5.0.0",
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
     "babel-plugin-react-compiler": "^19.1.0-rc.3",
+    "cypress": "^13.17.0",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",

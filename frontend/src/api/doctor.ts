@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { createOrgApiClient } from './client';
-import { Doctor, CreateDoctorRequest } from '../types/api';
+import type { Doctor, CreateDoctorRequest } from '../types/api';
 
 export const getAllDoctors = async (orgName: string): Promise<Doctor[]> => {
   try {

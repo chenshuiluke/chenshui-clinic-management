@@ -70,3 +70,23 @@ export const updateAppointmentStatusSchema = z.object({
 });
 
 export type UpdateAppointmentStatusDto = z.infer<typeof updateAppointmentStatusSchema>;
+
+// Query parameters validation for doctor listing appointments
+export const doctorAppointmentQuerySchema = z.object({
+  limit: z.string()
+    .optional()
+    .default('20')
+    .refine(val => !isNaN(Number(val)), 'Limit must be a number')
+    .transform(val => Number(val))
+    .refine(val => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
+  offset: z.string()
+    .optional()
+    .default('0')
+    .refine(val => !isNaN(Number(val)), 'Offset must be a number')
+    .transform(val => Number(val))
+    .refine(val => val >= 0, 'Offset must be non-negative'),
+  status: z.enum(['PENDING', 'APPROVED', 'DECLINED', 'COMPLETED', 'CANCELLED'])
+    .optional(),
+});
+
+export type DoctorAppointmentQueryDto = z.infer<typeof doctorAppointmentQuerySchema>;

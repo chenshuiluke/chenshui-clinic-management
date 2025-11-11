@@ -57,26 +57,21 @@ services:
       dockerfile: Dockerfile.dev
     container_name: clinic-frontend
     environment:
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=http://backend:3000
       - NODE_ENV=development
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/src:/app/src:ro
-      - ./frontend/public:/app/public:ro
-      - ./frontend/index.html:/app/index.html:ro
-      - ./frontend/package.json:/app/package.json:ro
-      - ./frontend/package-lock.json:/app/package-lock.json:ro
-      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
-      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json:ro
-      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json:ro
-      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
-      - ./frontend/eslint.config.js:/app/eslint.config.js:ro
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/vite.config.ts:/app/vite.config.ts
       - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0
-    restart: unless-stopped
+    command: sh -c "npm i && npm run build && npm run preview -- --host 0.0.0.0 --port 5173"
 
 volumes:
   postgres_data:

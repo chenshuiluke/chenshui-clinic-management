@@ -1,7 +1,7 @@
 // Central admin authentication context
-
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { CentralUser, CentralAuthContextType } from '../types/auth';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import type { CentralUser, CentralAuthContextType } from '../types/auth';
 import { centralLogin as apiCentralLogin, centralLogout as apiCentralLogout, centralRefresh as apiCentralRefresh, getCentralMe } from '../api/auth';
 import { getCentralTokens, setCentralTokens, clearCentralTokens } from '../utils/storage';
 import { shouldRefreshToken } from '../utils/jwt';
@@ -24,7 +24,7 @@ export const CentralAuthProvider: React.FC<CentralAuthProviderProps> = ({ childr
       if (!storedRefreshToken) {
         throw new Error('No refresh token available');
       }
-
+      
       const response = await apiCentralRefresh(storedRefreshToken);
       setCentralTokens(response.accessToken, response.refreshToken);
     } catch (err) {
@@ -35,20 +35,19 @@ export const CentralAuthProvider: React.FC<CentralAuthProviderProps> = ({ childr
     }
   }, []);
 
-  // Login function
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
       setError(null);
-      setLoading(true);
+
       const response = await apiCentralLogin(email, password);
       setCentralTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
+
+      return true; // Success
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
+      return false; 
     }
   }, []);
 
@@ -69,6 +68,7 @@ export const CentralAuthProvider: React.FC<CentralAuthProviderProps> = ({ childr
     const initAuth = async () => {
       try {
         const { accessToken } = getCentralTokens();
+        
         if (!accessToken) {
           setLoading(false);
           return;

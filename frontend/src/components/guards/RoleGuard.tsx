@@ -1,10 +1,11 @@
 // Role-based guard for organization routes
 
-import React, { ReactNode } from 'react';
+import React from 'react';
+import type { ReactNode } from 'react';
 import { Result, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useOrgAuth } from '../../contexts/OrgAuthContext';
-import { UserRole } from '../../types/auth';
+import type { UserRole } from '../../types/auth';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import BaseController from './base';
-import { BookAppointmentDto } from '../validators/appointment';
+import { BookAppointmentDto, AppointmentQueryDto, DoctorAppointmentQueryDto } from '../validators/appointment';
 import appointmentService from '../services/appointment.service';
 
 class AppointmentController extends BaseController {
@@ -44,9 +44,8 @@ class AppointmentController extends BaseController {
         return;
       }
 
-      // Parse pagination parameters with defaults
-      const limit = req.query.limit ? Math.min(parseInt(req.query.limit as string, 10), 100) : 20;
-      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+      // Use validated and transformed values from query
+      const { limit, offset } = req.query as unknown as AppointmentQueryDto;
 
       const result = await appointmentService.getPatientAppointments(
         this.getEm(req),
@@ -62,6 +61,32 @@ class AppointmentController extends BaseController {
     }
   }
 
+  async getDoctorAppointments(req: Request, res: Response): Promise<void> {
+    try {
+      const doctor = req.organizationUser;
+      if (!doctor) {
+        res.status(401).json({ error: 'Doctor not authenticated' });
+        return;
+      }
+
+      // Use validated and transformed values from query
+      const { limit, offset, status } = req.query as unknown as DoctorAppointmentQueryDto;
+
+      const result = await appointmentService.getDoctorAppointments(
+        this.getEm(req),
+        doctor,
+        limit,
+        offset,
+        status as any
+      );
+
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.error('Failed to get doctor appointments:', error);
+      res.status(500).json({ error: 'Failed to get doctor appointments' });
+    }
+  }
+
   async getPendingAppointments(req: Request, res: Response): Promise<void> {
     try {
       const doctor = req.organizationUser;
@@ -70,9 +95,8 @@ class AppointmentController extends BaseController {
         return;
       }
 
-      // Parse pagination parameters with defaults
-      const limit = req.query.limit ? Math.min(parseInt(req.query.limit as string, 10), 100) : 20;
-      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+      // Use validated and transformed values from query
+      const { limit, offset } = req.query as unknown as AppointmentQueryDto;
 
       const result = await appointmentService.getDoctorPendingAppointments(
         this.getEm(req),

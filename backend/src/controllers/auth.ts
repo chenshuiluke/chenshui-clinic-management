@@ -82,13 +82,22 @@ export class AuthController {
         return;
       }
 
+      const existingName = await em.findOne(User, { name });
+      if (existingName) {
+        res.status(400).json({ error: "Name already registered" });
+        return;
+      }
+
       const hashedPassword = await jwtService.hashPassword(password);
+
+      // In test/cypress environments, auto-verify users for easier testing
+      const isTestEnv = process.env.NODE_ENV === 'test' || process.env.CYPRESS_ENV === 'true';
 
       const user = em.create(User, {
         email,
         name,
         password: hashedPassword,
-        isVerified: false,
+        isVerified: isTestEnv,
       });
 
       await em.persistAndFlush(user);
@@ -102,8 +111,14 @@ export class AuthController {
         },
       });
     } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({ error: "Registration failed" });
+      // Return more specific error messages for known issues
+      if (error instanceof Error && error.message.includes('duplicate')) {
+        res.status(409).json({ error: "User already exists" });
+      } else if (error instanceof Error && error.message.includes('connection')) {
+        res.status(503).json({ error: "Database connection error" });
+      } else {
+        res.status(500).json({ error: "Registration failed" });
+      }
     }
   }
 

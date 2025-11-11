@@ -1,7 +1,8 @@
 // Organization authentication context
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { OrganizationUser, OrgAuthContextType } from '../types/auth';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import type { OrganizationUser, OrgAuthContextType } from '../types/auth';
 import { orgLogin as apiOrgLogin, orgLogout as apiOrgLogout, orgRefresh as apiOrgRefresh, getOrgMe } from '../api/org-auth';
 import { getOrgTokens, setOrgTokens, clearOrgTokens, getStoredOrgName } from '../utils/storage';
 import { shouldRefreshToken } from '../utils/jwt';

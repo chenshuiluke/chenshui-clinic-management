@@ -19,3 +19,8 @@ pnpm-debug.log*
 *.swo
 *~
 .eslintcache
+# Cypress-specific entries
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+cypress.env.json

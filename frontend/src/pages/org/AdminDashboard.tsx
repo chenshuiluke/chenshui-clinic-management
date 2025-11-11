@@ -9,7 +9,7 @@ import { buildOrgRoute, ROUTES } from '../../config/constants';
 const { Title } = Typography;
 
 export const AdminDashboard: React.FC = () => {
-  const { user, orgName } = useOrgAuth();
+  const { orgName } = useOrgAuth();
   const navigate = useNavigate();
   const [doctorCount, setDoctorCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);

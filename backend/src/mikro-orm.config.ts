@@ -12,6 +12,12 @@ const config = defineConfig({
   password: process.env.DB_PASSWORD || "clinic_password",
   dbName: process.env.DB_NAME || "clinic_db",
 
+  // Connection pool configuration
+  pool: {
+    min: 2,
+    max: 10,
+  },
+
   // SSL configuration for RDS
   driverOptions: {
     connection: {
@@ -19,12 +25,18 @@ const config = defineConfig({
         env.isProduction
           ? { rejectUnauthorized: false }
           : false,
+      // Connection timeout
+      connectionTimeoutMillis: 10000,
+      // Query timeout
+      query_timeout: 30000,
+      // Statement timeout
+      statement_timeout: 30000,
     },
   },
 
   // Use compiled JS files for entity discovery
-  entities: ["./dist/entities/central/*.js", "./dist/entities/base.js"],
-  entitiesTs: ["./src/entities/central/*.ts", "./src/entities/base.ts"],
+  entities: ["./dist/entities/**/*.js"],
+  entitiesTs: ["./src/entities/**/*.ts"],
 
   // Enable debug mode to log SQL queries
   debug: !env.isProduction,

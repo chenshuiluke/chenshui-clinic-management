@@ -1,7 +1,7 @@
 // Organization authentication API functions
 
 import { createOrgApiClient } from './client';
-import { OrganizationUser, LoginResponse, RefreshResponse } from '../types/auth';
+import type { OrganizationUser, LoginResponse, RefreshResponse } from '../types/auth';
 
 // Login
 export const orgLogin = async (orgName: string, email: string, password: string): Promise<LoginResponse<OrganizationUser>> => {

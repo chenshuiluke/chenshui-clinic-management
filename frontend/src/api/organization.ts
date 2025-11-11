@@ -1,6 +1,6 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import { centralApiClient } from './client';
-import { Organization, CreateOrganizationRequest, CreateAdminUserRequest } from '../types/api';
+import type { Organization, CreateOrganizationRequest, CreateAdminUserRequest } from '../types/api';
 
 export const getAllOrganizations = async (): Promise<Organization[]> => {
   try {

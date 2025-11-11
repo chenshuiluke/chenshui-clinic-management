@@ -13,7 +13,7 @@ import {
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { Organization } from '../../types/api';
+import type { Organization } from '../../types/api';
 import { getAllOrganizations, createOrganization, createAdminUser } from '../../api/organization';
 
 const { Title } = Typography;
@@ -192,7 +192,7 @@ export const AdminOrganizations: React.FC = () => {
               { min: 4, message: 'Name must be at least 4 characters' },
             ]}
           >
-            <Input placeholder="Enter organization name" />
+            <Input name="name" placeholder="Enter organization name" />
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, marginTop: '24px' }}>
@@ -244,7 +244,7 @@ export const AdminOrganizations: React.FC = () => {
               { type: 'email', message: 'Please enter valid email' },
             ]}
           >
-            <Input placeholder="admin@example.com" />
+            <Input name="email" placeholder="admin@example.com" />
           </Form.Item>
 
           <Form.Item
@@ -259,7 +259,7 @@ export const AdminOrganizations: React.FC = () => {
               { pattern: /[^a-zA-Z0-9]/, message: 'Must contain special character' },
             ]}
           >
-            <Input.Password placeholder="Enter password" />
+            <Input.Password name="password" placeholder="Enter password" />
           </Form.Item>
 
           <Form.Item
@@ -270,7 +270,7 @@ export const AdminOrganizations: React.FC = () => {
               { min: 1, message: 'First name is required' },
             ]}
           >
-            <Input placeholder="John" />
+            <Input name="firstName" placeholder="John" />
           </Form.Item>
 
           <Form.Item
@@ -281,7 +281,7 @@ export const AdminOrganizations: React.FC = () => {
               { min: 1, message: 'Last name is required' },
             ]}
           >
-            <Input placeholder="Doe" />
+            <Input name="lastName" placeholder="Doe" />
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, marginTop: '24px' }}>

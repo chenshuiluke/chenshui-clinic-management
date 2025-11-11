@@ -6,11 +6,16 @@ import {
   bookAppointmentSchema,
   appointmentIdParamSchema,
   appointmentQuerySchema,
+  doctorAppointmentQuerySchema,
   updateAppointmentStatusSchema
 } from '../validators/appointment';
 import { validate } from '../middleware/validator';
 
 const router = Router();
+
+router.get('/', requireDoctor, validate(doctorAppointmentQuerySchema, 'query'), (req, res) =>
+  appointmentController.getDoctorAppointments(req, res)
+);
 
 router.post('/', requirePatient, validateRequest(bookAppointmentSchema), (req, res) =>
   appointmentController.bookAppointment(req, res)

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import { CentralAuthProvider } from './contexts/CentralAuthContext';
@@ -60,11 +60,12 @@ function App() {
                 <Route path="/:orgName" element={<OrgLayout />}>
                   <Route path="dashboard" element={<OrgDashboard />} />
                   <Route path="admin/dashboard" element={<RoleGuard allowedRoles={['admin']}><OrgAdminDashboard /></RoleGuard>} />
+                  <Route path="doctor/dashboard" element={<RoleGuard allowedRoles={['doctor']}><OrgAppointments /></RoleGuard>} />
                   <Route path="doctors" element={<OrgDoctors />} />
                   <Route path="patients" element={<OrgPatients />} />
                   <Route path="appointments" element={<OrgAppointments />} />
-                  <Route path="book-appointment" element={<OrgBookAppointment />} />
-                  <Route path="my-appointments" element={<OrgMyAppointments />} />
+                  <Route path="patient/appointments/book" element={<OrgBookAppointment />} />
+                  <Route path="patient/appointments" element={<OrgMyAppointments />} />
                   <Route path="patient/profile" element={<OrgProfile />} />
                   {/* Redirect old profile path to new path */}
                   <Route path="profile" element={<Navigate to="patient/profile" replace />} />

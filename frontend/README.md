@@ -313,6 +313,233 @@ const RateLimitInfo: React.FC = () => {
 - [ ] Regular dependency updates
 - [ ] Security headers configured on hosting platform
 
+## E2E Testing with Cypress
+
+### Prerequisites
+
+- Backend must be running at http://localhost:3000 (or set CYPRESS_API_URL environment variable)
+- Frontend dev server must be running at http://localhost:5173
+
+### Running Tests
+
+**Interactive mode (recommended for development):**
+```bash
+npm run cypress:open
+```
+Opens Cypress Test Runner for debugging and development.
+
+**Headless mode (for CI):**
+```bash
+npm run cypress:run
+```
+Runs all tests in headless mode.
+
+**Browser-specific:**
+```bash
+npm run cypress:run:chrome   # Run tests in Chrome
+npm run cypress:run:firefox  # Run tests in Firefox
+```
+
+### Test Structure
+
+```
+cypress/
+├── e2e/
+│   ├── central-admin/      # Central admin functionality
+│   │   ├── auth.cy.ts      # Authentication tests
+│   │   └── organizations.cy.ts  # Organization management
+│   ├── org-admin/          # Organization admin functionality
+│   │   ├── auth.cy.ts      # Org admin authentication
+│   │   └── doctors.cy.ts   # Doctor management
+│   ├── patient/            # Patient functionality
+│   │   ├── registration.cy.ts   # Patient registration
+│   │   ├── profile.cy.ts        # Profile management
+│   │   └── appointments.cy.ts   # Appointment booking
+│   ├── doctor/             # Doctor functionality
+│   │   └── appointments.cy.ts   # Appointment management
+│   └── cross-cutting/      # Cross-cutting concerns
+│       └── isolation.cy.ts      # Org isolation, auth guards
+├── fixtures/               # Test data
+│   ├── users.json
+│   └── organizations.json
+└── support/                # Custom commands
+    ├── commands.ts
+    ├── e2e.ts
+    └── index.d.ts
+```
+
+### Custom Commands
+
+Cypress custom commands are available for common operations:
+
+**Authentication:**
+- `cy.loginAsCentralAdmin(email, password)` - Login as central admin
+- `cy.loginAsOrgUser(orgName, email, password, role)` - Login as org user
+
+**Data Seeding:**
+- `cy.seedCentralAdmin(email, name, password)` - Create central admin
+- `cy.seedOrganization(name, token)` - Create organization
+- `cy.seedOrgAdmin(orgId, data, token)` - Create org admin
+- `cy.seedDoctor(orgName, data, token)` - Create doctor
+- `cy.seedPatient(orgName, data)` - Register patient
+- `cy.seedAppointment(orgName, data, token)` - Book appointment
+
+**Storage:**
+- `cy.clearLocalStorage()` - Clear localStorage
+- `cy.setLocalStorageItem(key, value)` - Set localStorage item
+- `cy.getLocalStorageItem(key)` - Get localStorage item
+
+See `cypress/support/commands.ts` for full list.
+
+### Environment Variables
+
+Set custom API URL:
+```bash
+export CYPRESS_API_URL=http://localhost:3000
+npm run cypress:run
+```
+
+Or create `cypress.env.json`:
+```json
+{
+  "apiUrl": "http://localhost:3000"
+}
+```
+
+**Note:** `cypress.env.json` is gitignored to prevent committing sensitive data.
+
+### Writing Tests
+
+**Example test structure:**
+```typescript
+describe('Feature Name', () => {
+  beforeEach(() => {
+    // Setup: seed data, login
+    cy.seedCentralAdmin('admin@test.com', 'Admin', 'Password123!@#');
+    cy.loginAsCentralAdmin('admin@test.com', 'Password123!@#');
+  });
+
+  it('should perform action', () => {
+    cy.visit('/some/page');
+    cy.get('button').click();
+    cy.contains('Success').should('be.visible');
+  });
+});
+```
+
+### Tips
+
+- Tests use unique timestamps in data to avoid conflicts
+- Each test cleans up localStorage before running
+- Use `cy.pause()` in interactive mode to debug tests
+- Screenshots and videos are saved in `cypress/screenshots/` and `cypress/videos/` on failure
+- Tests run with retries enabled in CI mode (2 retries per test)
+
+### Running Tests in Docker
+
+Docker provides an isolated, reproducible environment for running E2E tests, which is especially useful for CI/CD pipelines.
+
+**Prerequisites for Docker testing:**
+- Docker and Docker Compose installed
+- No need for Node.js or npm installed locally (everything runs in containers)
+- No need for backend or frontend servers running locally
+
+**Running E2E tests in Docker:**
+
+From the project root:
+```bash
+./test-e2e.sh  # Recommended - includes automatic cleanup
+```
+
+From the frontend directory:
+```bash
+npm run cypress:docker
+```
+
+This command will:
+1. Build Docker images for backend and frontend
+2. Start PostgreSQL test database in tmpfs (in-memory for speed)
+3. Start backend API server and wait for health check
+4. Start frontend dev server and wait for health check
+5. Run all Cypress tests in the cypress/included Docker image
+6. Exit with appropriate status code (0 for success, non-zero for failure)
+
+**Viewing logs during test execution:**
+
+In a separate terminal:
+```bash
+cd frontend && npm run cypress:docker:logs
+```
+
+This shows real-time logs from all services (database, backend, frontend, Cypress).
+
+**Cleaning up after tests:**
+```bash
+cd frontend && npm run cypress:docker:down
+```
+
+This removes all containers and volumes created by the test run. The `test-e2e.sh` script does this automatically.
+
+**Debugging failed tests in Docker:**
+
+- Test videos are saved in `frontend/cypress/videos/`
+- Failure screenshots are saved in `frontend/cypress/screenshots/`
+- View service logs: `npm run cypress:docker:logs`
+- To keep containers running after test failure for debugging, manually run:
+  ```bash
+  docker compose -f ../docker-compose.cypress.yaml up --build
+  ```
+  (without --abort-on-container-exit)
+
+**CI/CD Integration:**
+
+The docker-compose.cypress.yaml setup is designed for CI/CD pipelines:
+- All dependencies are containerized (no need to install Node.js, Chrome, etc. on CI runners)
+- Tests run against isolated test database (no conflicts with other tests)
+- Exit code propagates correctly (0 for success, non-zero for failure)
+- Example GitHub Actions workflow: Run `./test-e2e.sh` in a step, which will fail the build if tests fail
+
+**Differences between local and Docker testing:**
+
+| Aspect | Local Testing | Docker Testing |
+|--------|--------------|----------------|
+| Server URLs | localhost:5173, localhost:3000 | Container network (frontend:5173, backend-api:3000) |
+| Setup | Manual server startup required | Automatic startup with health checks |
+| Database | Your local PostgreSQL | In-memory PostgreSQL (tmpfs) |
+| Environment | Varies by machine | Identical across all machines |
+| Chrome/Browser | Your local installation | Cypress Docker image with pre-installed browsers |
+| Test Isolation | May conflict with local data | Completely isolated environment |
+
+**Troubleshooting:**
+
+- **Connection errors:** Check that health checks are passing:
+  ```bash
+  docker compose -f ../docker-compose.cypress.yaml ps
+  ```
+
+- **Backend health check fails:** Check backend logs:
+  ```bash
+  docker compose -f ../docker-compose.cypress.yaml logs backend-api
+  ```
+
+- **Frontend health check fails:** Check frontend logs:
+  ```bash
+  docker compose -f ../docker-compose.cypress.yaml logs frontend
+  ```
+
+- **Cypress crashes:** Increase shared memory in docker-compose.cypress.yaml:
+  ```yaml
+  cypress:
+    shm_size: 4gb  # Increase from 2gb if needed
+  ```
+
+- **Rebuild after code changes:**
+  ```bash
+  docker compose -f ../docker-compose.cypress.yaml build --no-cache
+  ```
+
+- **Port conflicts:** If you have services running locally on ports 3000 or 5173, the Docker containers use internal networking and won't conflict. However, if you want to access the containers from your host, you can expose different ports in docker-compose.cypress.yaml.
+
 ## Development
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

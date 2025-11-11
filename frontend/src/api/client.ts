@@ -1,6 +1,7 @@
 // Axios API client with automatic token refresh
 
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { API_BASE_URL } from '../config/constants';
 import { getCentralTokens, setCentralTokens, clearCentralTokens, getOrgTokens, setOrgTokens, clearOrgTokens } from '../utils/storage';
 
@@ -34,8 +35,12 @@ centralApiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    // Skip token refresh for login/register endpoints
+    const isAuthEndpoint = originalRequest.url?.includes('/login') ||
+                          originalRequest.url?.includes('/auth/register');
+
     // If 401 and not already retried, attempt token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
@@ -107,8 +112,12 @@ export const createOrgApiClient = (orgName: string): AxiosInstance => {
     async (error: AxiosError) => {
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+      // Skip token refresh for login/register endpoints
+      const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
+                            originalRequest.url?.includes('/auth/register');
+
       // If 401 and not already retried, attempt token refresh
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
         originalRequest._retry = true;
 
         try {

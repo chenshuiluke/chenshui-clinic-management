@@ -5,7 +5,6 @@ import { Form, Input, Button, Card, Alert, Typography, DatePicker, Select, Space
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { registerPatient } from '../../api/patient';
-import { setOrgTokens } from '../../utils/storage';
 import { buildOrgRoute, ROUTES } from '../../config/constants';
 import { useOrgAuth } from '../../contexts/OrgAuthContext';
 

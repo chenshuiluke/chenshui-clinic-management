@@ -8,7 +8,7 @@ import { useOrgAuth } from '../../contexts/OrgAuthContext';
 import { RoleGuard } from '../../components/guards/RoleGuard';
 import { getPatientProfile, updatePatientProfile, deletePatientAccount } from '../../api/patient';
 import { buildOrgRoute, ROUTES } from '../../config/constants';
-import { PatientProfile, UpdatePatientProfileRequest } from '../../types/api';
+import type { PatientProfile, UpdatePatientProfileRequest } from '../../types/api';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;

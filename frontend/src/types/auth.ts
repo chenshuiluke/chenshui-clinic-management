@@ -40,7 +40,7 @@ export interface CentralAuthContextType {
   user: CentralUser | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
 }

@@ -1,7 +1,7 @@
 // Central admin authentication API functions
 
 import { centralApiClient } from './client';
-import { CentralUser, LoginResponse, RefreshResponse } from '../types/auth';
+import type { CentralUser, LoginResponse, RefreshResponse } from '../types/auth';
 
 // Login
 export const centralLogin = async (email: string, password: string): Promise<LoginResponse<CentralUser>> => {

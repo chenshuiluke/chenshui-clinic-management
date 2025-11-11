@@ -1,7 +1,5 @@
 // API-related type definitions
 
-import { UserRole } from './auth';
-
 // Organization
 export interface Organization {
   id: number;
@@ -23,13 +21,16 @@ export interface CreateAdminUserRequest {
   lastName: string;
 }
 
-// Appointment status enum (matches backend)
-export enum AppointmentStatus {
-  SCHEDULED = 'scheduled',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-  NO_SHOW = 'no_show',
-}
+// Appointment status (matches backend)
+export const APPOINTMENT_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  DECLINED: 'DECLINED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type AppointmentStatus = typeof APPOINTMENT_STATUS[keyof typeof APPOINTMENT_STATUS];
 
 // Patient Profile
 export interface PatientProfile {
@@ -86,16 +87,19 @@ export interface CreateDoctorRequest {
   phoneNumber?: string;
 }
 
-// Appointment (simplified for frontend)
+// Appointment (doctor-facing/admin-facing only - not returned to patients)
+// Note: This interface uses Date types but the backend returns ISO 8601 strings.
+// This interface is kept for potential future use with doctor/admin endpoints.
+// Patients should use PatientAppointment interface instead.
 export interface Appointment {
   id: number;
-  patient: {
+  patient?: {
     id: number;
     firstName: string;
     lastName: string;
     email: string;
   };
-  doctor: {
+  doctor?: {
     id: number;
     firstName: string;
     lastName: string;
@@ -105,8 +109,64 @@ export interface Appointment {
   appointmentDateTime: Date;
   status: AppointmentStatus;
   notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Patient-facing appointment interface (from patient endpoints)
+export interface PatientAppointment {
+  id: number;
+  appointmentDateTime: string; // ISO 8601 string
+  status: AppointmentStatus;
+  notes?: string | null;
+  doctor: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    specialization: string;
+  } | null;
+  createdAt: string; // ISO 8601 string
+}
+
+// Paginated response for patient appointments
+export interface PatientAppointmentsResponse {
+  appointments: PatientAppointment[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Doctor-facing appointment interface (from doctor endpoints)
+export interface DoctorAppointment {
+  id: number;
+  appointmentDateTime: string; // ISO 8601 string
+  status: AppointmentStatus;
+  notes?: string | null;
+  patient: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    phoneNumber: string;
+    allergies?: string | null;
+    chronicConditions?: string | null;
+  } | null;
+  createdAt: string; // ISO 8601 string
+}
+
+// Paginated response for doctor appointments
+export interface DoctorAppointmentsResponse {
+  appointments: DoctorAppointment[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Book appointment request (patient-facing)
+export interface BookAppointmentRequest {
+  doctorId: number;
+  appointmentDateTime: string; // ISO 8601 string, must be in future
+  notes?: string; // max 1000 characters
 }
 
 // Create appointment request
