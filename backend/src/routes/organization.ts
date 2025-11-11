@@ -13,6 +13,9 @@ import {
 const router = Router();
 const organizationController = new OrganizationController();
 router
+  .route("/count")
+  .get((req, res) => organizationController.getOrganizationsCount(req, res));
+router
   .route("/")
   .get((req, res) => organizationController.getAllOrganizations(req, res));
 router

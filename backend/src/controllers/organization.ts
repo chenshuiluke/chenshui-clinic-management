@@ -139,6 +139,16 @@ export default class OrganizationController extends BaseController {
     }
   };
 
+  getOrganizationsCount = async (req: Request, res: Response) => {
+    try {
+      const count = await this.em.count(Organization, {});
+      res.status(200).json({ count });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ error: "Failed to fetch organizations count" });
+    }
+  };
+
   createAdminUser = async (req: Request, res: Response): Promise<void> => {
     try {
       const orgId = parseInt(req.params.orgId!);

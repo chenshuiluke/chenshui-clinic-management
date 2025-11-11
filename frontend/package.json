@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
+    "antd": "^5.22.0",
+    "axios": "^1.7.0",
+    "dayjs": "^1.11.13",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-router-dom": "^6.28.0",
     "tailwindcss": "^4.1.14"
   },
   "devDependencies": {
