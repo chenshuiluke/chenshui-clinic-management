@@ -59,14 +59,14 @@ function App() {
               <Route element={<OrgAuthGuard />}>
                 <Route path="/:orgName" element={<OrgLayout />}>
                   <Route path="dashboard" element={<OrgDashboard />} />
-                  <Route path="admin/dashboard" element={<RoleGuard allowedRoles={['admin']}><OrgAdminDashboard /></RoleGuard>} />
-                  <Route path="doctor/dashboard" element={<RoleGuard allowedRoles={['doctor']}><OrgAppointments /></RoleGuard>} />
+                  <Route path="admin/dashboard" element={<RoleGuard allowedRoles={['ADMIN']}><OrgAdminDashboard /></RoleGuard>} />
+                  <Route path="doctor/dashboard" element={<RoleGuard allowedRoles={['DOCTOR']}><OrgAppointments /></RoleGuard>} />
                   <Route path="doctors" element={<OrgDoctors />} />
                   <Route path="patients" element={<OrgPatients />} />
                   <Route path="appointments" element={<OrgAppointments />} />
                   <Route path="patient/appointments/book" element={<OrgBookAppointment />} />
                   <Route path="patient/appointments" element={<OrgMyAppointments />} />
-                  <Route path="patient/profile" element={<OrgProfile />} />
+                  <Route path="profile" element={<OrgProfile />} />
                 </Route>
               </Route>
             </Routes>

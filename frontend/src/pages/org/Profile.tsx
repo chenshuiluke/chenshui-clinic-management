@@ -308,7 +308,7 @@ export const OrgProfile: React.FC = () => {
   };
 
   return (
-    <RoleGuard allowedRoles={['patient']}>
+    <RoleGuard allowedRoles={['PATIENT']}>
       <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
         <Card title={<Title level={2} style={{ margin: 0 }}>My Profile</Title>}>
           {loading ? (

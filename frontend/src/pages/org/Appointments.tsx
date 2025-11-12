@@ -38,7 +38,7 @@ const { Title } = Typography;
 
 export const OrgAppointments: React.FC = () => {
   return (
-    <RoleGuard allowedRoles={['doctor']}>
+    <RoleGuard allowedRoles={['DOCTOR']}>
       <AppointmentsContent />
     </RoleGuard>
   );

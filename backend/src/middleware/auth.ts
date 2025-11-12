@@ -174,13 +174,11 @@ export const optionalAuth = async (
 };
 
 /**
- * Helper function to authenticate and load user with specific profile
+ * Helper to load organization user with all profiles
  */
-const authenticateAndLoadProfile = async (
+const loadOrganizationUserWithProfiles = async (
   req: Request,
-  res: Response,
-  profileField: 'adminProfile' | 'doctorProfile' | 'patientProfile',
-  roleDisplayName: string
+  res: Response
 ): Promise<OrganizationUserWithProfile | null> => {
   // Verify token and attach user to request
   const authenticated = await verifyAndAttachUser(req, res);
@@ -243,6 +241,23 @@ const authenticateAndLoadProfile = async (
     doctorProfile: result.doctor_profile,
     patientProfile: result.patient_profile,
   };
+
+  return user;
+};
+
+/**
+ * Helper function to authenticate and load user with specific profile
+ */
+const authenticateAndLoadProfile = async (
+  req: Request,
+  res: Response,
+  profileField: 'adminProfile' | 'doctorProfile' | 'patientProfile',
+  roleDisplayName: string
+): Promise<OrganizationUserWithProfile | null> => {
+  const user = await loadOrganizationUserWithProfiles(req, res);
+  if (!user) {
+    return null;
+  }
 
   if (!user[profileField]) {
     res.status(403).json({ error: `${roleDisplayName} access required` });
@@ -312,6 +327,45 @@ export const requirePatient = async (
 ): Promise<void> => {
   const user = await authenticateAndLoadProfile(req, res, 'patientProfile', 'Patient');
   if (!user) return; // Response already sent by authenticateAndLoadProfile
+
+  req.organizationUser = user;
+  next();
+};
+
+/**
+ * Require admin or doctor role
+ */
+export const requireAdminOrDoctor = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const user = await loadOrganizationUserWithProfiles(req, res);
+  if (!user) {
+    return; // Response already sent by helper
+  }
+
+  if (!user.adminProfile && !user.doctorProfile) {
+    res.status(403).json({ error: 'Admin or Doctor access required' });
+    return;
+  }
+
+  // Validate that the user's actual role matches
+  const actualRole = getUserRole(user);
+  if (actualRole !== 'ADMIN' && actualRole !== 'DOCTOR') {
+    securityLogger.suspiciousActivity(
+      'ROLE_MISMATCH',
+      {
+        userId: user.id,
+        actualRole,
+        expectedRole: 'ADMIN or DOCTOR',
+        orgName: req.organization
+      },
+      getClientIp(req)
+    );
+    res.status(403).json({ error: 'Role verification failed' });
+    return;
+  }
 
   req.organizationUser = user;
   next();

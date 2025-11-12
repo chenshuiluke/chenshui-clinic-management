@@ -72,7 +72,7 @@ export const OrgLayout: React.FC = () => {
       },
     ];
 
-    if (user?.role === 'admin') {
+    if (user?.role === 'ADMIN') {
       return [
         ...baseItems,
         {
@@ -96,7 +96,7 @@ export const OrgLayout: React.FC = () => {
       ];
     }
 
-    if (user?.role === 'doctor') {
+    if (user?.role === 'DOCTOR') {
       return [
         ...baseItems,
         {
@@ -114,7 +114,7 @@ export const OrgLayout: React.FC = () => {
       ];
     }
 
-    if (user?.role === 'patient') {
+    if (user?.role === 'PATIENT') {
       return [
         ...baseItems,
         {

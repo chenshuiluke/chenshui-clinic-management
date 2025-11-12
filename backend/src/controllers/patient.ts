@@ -5,6 +5,82 @@ import { PatientRegisterDto, UpdatePatientProfileDto } from '../validators/patie
 import patientService from '../services/patient.service';
 
 class PatientController extends BaseController {
+  async getAllPatients(req: Request, res: Response): Promise<void> {
+    try {
+      const db = this.getDb(req);
+      const query = req.query.q as string | undefined;
+      const parsedLimit = parseInt(req.query.limit as string);
+      const limit = Math.max(0, isNaN(parsedLimit) ? 10 : parsedLimit);
+      const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+
+      // Build where condition
+      const whereCondition = (users: any, { isNotNull, or, ilike, and }: any) => {
+        const baseCondition = isNotNull(users.patientProfileId);
+
+        if (!query) {
+          return baseCondition;
+        }
+
+        // Case-insensitive search on firstName, lastName, or email
+        const searchPattern = `%${query}%`;
+        return and(
+          baseCondition,
+          or(
+            ilike(users.firstName, searchPattern),
+            ilike(users.lastName, searchPattern),
+            ilike(users.email, searchPattern)
+          )
+        );
+      };
+
+      // Get total count with the same filters
+      const totalResult = await db.query.organizationUserTable.findMany({
+        where: whereCondition,
+        columns: { id: true },
+      });
+      const total = totalResult.length;
+
+      // Get paginated patients with server-side LIMIT and OFFSET
+      const patients = await db.query.organizationUserTable.findMany({
+        where: whereCondition,
+        with: {
+          patientProfile: true,
+        },
+        limit,
+        offset,
+      });
+
+      // Map to response shape
+      const mappedPatients = patients
+        .filter(user => user.patientProfile)
+        .map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: 'patient' as const,
+          dateOfBirth: user.patientProfile!.dateOfBirth,
+          phoneNumber: user.patientProfile!.phoneNumber,
+          address: user.patientProfile!.address,
+          emergencyContactName: user.patientProfile!.emergencyContactName,
+          emergencyContactPhone: user.patientProfile!.emergencyContactPhone,
+          bloodType: user.patientProfile!.bloodType,
+          allergies: user.patientProfile!.allergies,
+          chronicConditions: user.patientProfile!.chronicConditions,
+        }));
+
+      res.status(200).json({
+        patients: mappedPatients,
+        total,
+        limit,
+        offset,
+      });
+    } catch (error: any) {
+      console.error('Failed to fetch patients:', error);
+      res.status(500).json({ error: 'Failed to fetch patients' });
+    }
+  }
+
   async register(req: Request, res: Response): Promise<void> {
     try {
       const patientData = req.body as PatientRegisterDto;

@@ -12,7 +12,7 @@ export interface CentralUser {
 }
 
 // Organization user with role
-export type UserRole = 'admin' | 'doctor' | 'patient';
+export type UserRole = 'ADMIN' | 'DOCTOR' | 'PATIENT';
 
 export interface OrganizationUser {
   id: number;

@@ -1,7 +1,33 @@
 import axios from 'axios';
 import { createOrgApiClient } from './client';
-import type { PatientProfile, PatientRegisterRequest, UpdatePatientProfileRequest } from '../types/api';
+import type { PatientProfile, PatientRegisterRequest, UpdatePatientProfileRequest, PatientsResponse } from '../types/api';
 import type { LoginResponse, OrganizationUser } from '../types/auth';
+
+export const getAllPatients = async (
+  orgName: string,
+  query?: string,
+  limit?: number,
+  offset?: number
+): Promise<PatientsResponse> => {
+  try {
+    const client = createOrgApiClient(orgName);
+    const params: any = {};
+    if (query) params.q = query;
+    if (limit !== undefined) params.limit = limit;
+    if (offset !== undefined) params.offset = offset;
+
+    const response = await client.get('/patients', {
+      params: Object.keys(params).length > 0 ? params : undefined,
+    });
+    return response.data;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.error || error.response?.data?.message || 'Failed to fetch patients';
+      throw new Error(message);
+    }
+    throw new Error('Failed to fetch patients');
+  }
+};
 
 export const registerPatient = async (orgName: string, data: PatientRegisterRequest): Promise<LoginResponse<OrganizationUser>> => {
   try {

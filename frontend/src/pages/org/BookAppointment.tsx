@@ -22,7 +22,7 @@ import { buildOrgRoute, ROUTES } from '../../config/constants';
 
 export const OrgBookAppointment: React.FC = () => {
   return (
-    <RoleGuard allowedRoles={['patient']}>
+    <RoleGuard allowedRoles={['PATIENT']}>
       <BookAppointmentContent />
     </RoleGuard>
   );

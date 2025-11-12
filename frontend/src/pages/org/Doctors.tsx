@@ -11,7 +11,7 @@ const { Title } = Typography;
 
 export const OrgDoctors: React.FC = () => {
   return (
-    <RoleGuard allowedRoles={['admin']}>
+    <RoleGuard allowedRoles={['ADMIN']}>
       <DoctorsContent />
     </RoleGuard>
   );

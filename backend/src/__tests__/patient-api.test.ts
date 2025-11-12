@@ -1244,4 +1244,601 @@ describe("Patient API", () => {
       }
     });
   });
+
+  describe("GET /:orgName/patients", () => {
+    it("should return all patients for admin user", async () => {
+      // Register 3 patients
+      const patients = [
+        {
+          email: "patient1@example.com",
+          password: "password123",
+          firstName: "John",
+          lastName: "Doe",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5551111111",
+          bloodType: "A+",
+          allergies: "Peanuts",
+        },
+        {
+          email: "patient2@example.com",
+          password: "password123",
+          firstName: "Jane",
+          lastName: "Smith",
+          dateOfBirth: "1985-05-20",
+          phoneNumber: "5552222222",
+          address: "456 Oak Ave",
+        },
+        {
+          email: "patient3@example.com",
+          password: "password123",
+          firstName: "Bob",
+          lastName: "Johnson",
+          dateOfBirth: "1992-03-10",
+          phoneNumber: "5553333333",
+          chronicConditions: "Diabetes",
+        },
+      ];
+
+      for (const patient of patients) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send(patient)
+          .expect(201);
+      }
+
+      // Get all patients with admin token
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body).to.have.property("patients");
+      expect(response.body.patients).to.be.an("array");
+      expect(response.body.patients).to.have.lengthOf(3);
+      expect(response.body).to.have.property("total", 3);
+
+      // Verify each patient has the correct fields
+      response.body.patients.forEach((patient: any) => {
+        expect(patient).to.have.property("id");
+        expect(patient).to.have.property("email");
+        expect(patient).to.have.property("firstName");
+        expect(patient).to.have.property("lastName");
+        expect(patient).to.have.property("role", "patient");
+        expect(patient).to.have.property("dateOfBirth");
+        expect(patient).to.have.property("phoneNumber");
+        expect(patient).to.not.have.property("password");
+      });
+
+      // Verify specific patient data
+      const patient1 = response.body.patients.find((p: any) => p.email === "patient1@example.com");
+      expect(patient1).to.exist;
+      expect(patient1.bloodType).to.equal("A+");
+      expect(patient1.allergies).to.equal("Peanuts");
+    });
+
+    it("should return all patients for doctor user", async () => {
+      // Create a doctor user
+      const orgDb = await getOrgDb(organizationName);
+      const hashedPassword = await jwtService.hashPassword("doctorpass123");
+
+      const result = await orgDb.transaction(async (tx) => {
+        const [doctorProfile] = await tx
+          .insert(doctorProfileTable)
+          .values({
+            specialization: "Cardiology",
+            licenseNumber: "MD123456",
+          })
+          .returning();
+        const [doctorUser] = await tx
+          .insert(organizationUserTable)
+          .values({
+            email: "doctor@hospital.com",
+            password: hashedPassword,
+            firstName: "Doctor",
+            lastName: "User",
+            doctorProfileId: doctorProfile!.id,
+          })
+          .returning();
+        return { doctorUser };
+      });
+
+      const { doctorUser } = result;
+
+      // Generate token for doctor user
+      const doctorPayload: OrgJWTPayload = {
+        userId: doctorUser!.id,
+        email: doctorUser!.email,
+        name: `${doctorUser!.firstName} ${doctorUser!.lastName}`,
+        orgName: organizationName,
+        type: "org",
+      };
+      const doctorToken = jwtService.generateAccessToken(doctorPayload);
+
+      // Register 2 patients
+      const patients = [
+        {
+          email: "patient1@example.com",
+          password: "password123",
+          firstName: "John",
+          lastName: "Doe",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5551111111",
+        },
+        {
+          email: "patient2@example.com",
+          password: "password123",
+          firstName: "Jane",
+          lastName: "Smith",
+          dateOfBirth: "1985-05-20",
+          phoneNumber: "5552222222",
+        },
+      ];
+
+      for (const patient of patients) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send(patient)
+          .expect(201);
+      }
+
+      // Get all patients with doctor token
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${doctorToken}`)
+        .expect(200);
+
+      expect(response.body).to.have.property("patients");
+      expect(response.body.patients).to.be.an("array");
+      expect(response.body.patients).to.have.lengthOf(2);
+    });
+
+    it("should reject patient users from accessing patient list", async () => {
+      // Register a patient
+      const patientData = {
+        email: "patient@example.com",
+        password: "password123",
+        firstName: "John",
+        lastName: "Doe",
+        dateOfBirth: "1990-01-15",
+        phoneNumber: "5551234567",
+      };
+
+      const registerResponse = await request(app)
+        .post(`/${organizationName}/patients/register`)
+        .send(patientData)
+        .expect(201);
+
+      const patientToken = registerResponse.body.accessToken;
+
+      // Try to access patient list with patient token
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${patientToken}`)
+        .expect(403);
+
+      expect(response.body).to.have.property("error", "Admin or Doctor access required");
+    });
+
+    it("should require authentication", async () => {
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .expect(401);
+
+      expect(response.body).to.have.property("error", "Authentication token required");
+    });
+
+    it("should return empty array when no patients exist", async () => {
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body).to.have.property("patients");
+      expect(response.body.patients).to.be.an("array");
+      expect(response.body.patients).to.have.lengthOf(0);
+      expect(response.body).to.have.property("total", 0);
+    });
+
+    it("should include all patient profile fields", async () => {
+      // Register a patient with all fields
+      const patientData = {
+        email: "complete@example.com",
+        password: "password123",
+        firstName: "Complete",
+        lastName: "Patient",
+        dateOfBirth: "1990-01-15",
+        phoneNumber: "5551234567",
+        address: "123 Main St, City, State 12345",
+        emergencyContactName: "Emergency Contact",
+        emergencyContactPhone: "5559876543",
+        bloodType: "AB+",
+        allergies: "Peanuts, Latex",
+        chronicConditions: "Hypertension",
+      };
+
+      await request(app)
+        .post(`/${organizationName}/patients/register`)
+        .send(patientData)
+        .expect(201);
+
+      // Get all patients
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.patients).to.have.lengthOf(1);
+      const patient = response.body.patients[0];
+
+      expect(patient.id).to.exist;
+      expect(patient.email).to.equal(patientData.email);
+      expect(patient.firstName).to.equal(patientData.firstName);
+      expect(patient.lastName).to.equal(patientData.lastName);
+      expect(patient.role).to.equal("patient");
+      expect(patient.dateOfBirth).to.exist;
+      expect(patient.phoneNumber).to.equal(patientData.phoneNumber);
+      expect(patient.address).to.equal(patientData.address);
+      expect(patient.emergencyContactName).to.equal(patientData.emergencyContactName);
+      expect(patient.emergencyContactPhone).to.equal(patientData.emergencyContactPhone);
+      expect(patient.bloodType).to.equal(patientData.bloodType);
+      expect(patient.allergies).to.equal(patientData.allergies);
+      expect(patient.chronicConditions).to.equal(patientData.chronicConditions);
+    });
+
+    it("should support pagination", async () => {
+      // Register 15 patients
+      for (let i = 1; i <= 15; i++) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send({
+            email: `patient${i}@example.com`,
+            password: "password123",
+            firstName: `Patient${i}`,
+            lastName: "Test",
+            dateOfBirth: "1990-01-15",
+            phoneNumber: `555${i.toString().padStart(7, '0')}`,
+          })
+          .expect(201);
+      }
+
+      // Get first page with 10 items
+      const page1Response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 10, offset: 0 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(page1Response.body).to.have.property("patients");
+      expect(page1Response.body).to.have.property("total", 15);
+      expect(page1Response.body).to.have.property("limit", 10);
+      expect(page1Response.body).to.have.property("offset", 0);
+      expect(page1Response.body.patients).to.have.lengthOf(10);
+
+      // Get second page with 10 items
+      const page2Response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 10, offset: 10 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(page2Response.body.patients).to.have.lengthOf(5);
+      expect(page2Response.body).to.have.property("total", 15);
+    });
+
+    it("should support search by name", async () => {
+      // Register patients with different names
+      await request(app)
+        .post(`/${organizationName}/patients/register`)
+        .send({
+          email: "john.doe@example.com",
+          password: "password123",
+          firstName: "John",
+          lastName: "Doe",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5551111111",
+        })
+        .expect(201);
+
+      await request(app)
+        .post(`/${organizationName}/patients/register`)
+        .send({
+          email: "jane.smith@example.com",
+          password: "password123",
+          firstName: "Jane",
+          lastName: "Smith",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5552222222",
+        })
+        .expect(201);
+
+      // Search by first name
+      const searchResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ q: "john" })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(searchResponse.body.patients).to.have.lengthOf(1);
+      expect(searchResponse.body.patients[0].firstName).to.equal("John");
+    });
+
+    it("should support search by email", async () => {
+      // Register patients
+      await request(app)
+        .post(`/${organizationName}/patients/register`)
+        .send({
+          email: "test@example.com",
+          password: "password123",
+          firstName: "Test",
+          lastName: "User",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5551111111",
+        })
+        .expect(201);
+
+      // Search by email
+      const searchResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ q: "test@example" })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(searchResponse.body.patients).to.have.lengthOf(1);
+      expect(searchResponse.body.patients[0].email).to.equal("test@example.com");
+    });
+
+
+
+
+
+
+
+    it("should isolate patients between organizations", async () => {
+      // Register patients in first organization
+      const org1Patients = [
+        {
+          email: "org1patient1@example.com",
+          password: "password123",
+          firstName: "Org1",
+          lastName: "Patient1",
+          dateOfBirth: "1990-01-15",
+          phoneNumber: "5551111111",
+        },
+        {
+          email: "org1patient2@example.com",
+          password: "password123",
+          firstName: "Org1",
+          lastName: "Patient2",
+          dateOfBirth: "1985-05-20",
+          phoneNumber: "5552222222",
+        },
+      ];
+
+      for (const patient of org1Patients) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send(patient)
+          .expect(201);
+      }
+
+      // Create second organization
+      const org2Response = await request(app)
+        .post("/organizations")
+        .set("Authorization", `Bearer ${centralAuthToken}`)
+        .send({ name: `Test Hospital 2 ${Date.now()}` })
+        .expect(201);
+
+      const org2Name = org2Response.body.name;
+      trackOrganization(org2Name);
+
+      // Create admin for second organization
+      const org2Db = await getOrgDb(org2Name);
+      const hashedPassword = await jwtService.hashPassword("adminpass123");
+
+      const org2Result = await org2Db.transaction(async (tx) => {
+        const [adminProfile] = await tx.insert(adminProfileTable).values({}).returning();
+        const [adminUser] = await tx
+          .insert(organizationUserTable)
+          .values({
+            email: "admin@hospital2.com",
+            password: hashedPassword,
+            firstName: "Admin",
+            lastName: "User2",
+            adminProfileId: adminProfile!.id,
+          })
+          .returning();
+        return { adminUser };
+      });
+
+      const { adminUser: org2AdminUser } = org2Result;
+
+      const org2AdminPayload: OrgJWTPayload = {
+        userId: org2AdminUser!.id,
+        email: org2AdminUser!.email,
+        name: `${org2AdminUser!.firstName} ${org2AdminUser!.lastName}`,
+        orgName: org2Name,
+        type: "org",
+      };
+      const org2AdminToken = jwtService.generateAccessToken(org2AdminPayload);
+
+      // Register patients in second organization
+      const org2Patients = [
+        {
+          email: "org2patient1@example.com",
+          password: "password123",
+          firstName: "Org2",
+          lastName: "Patient1",
+          dateOfBirth: "1992-03-10",
+          phoneNumber: "5553333333",
+        },
+      ];
+
+      for (const patient of org2Patients) {
+        await request(app)
+          .post(`/${org2Name}/patients/register`)
+          .send(patient)
+          .expect(201);
+      }
+
+      // Get patients from first organization
+      const org1Response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(org1Response.body.patients).to.have.lengthOf(2);
+      org1Response.body.patients.forEach((patient: any) => {
+        expect(patient.email).to.match(/org1patient/);
+      });
+
+      // Get patients from second organization
+      const org2PatientsResponse = await request(app)
+        .get(`/${org2Name}/patients`)
+        .set("Authorization", `Bearer ${org2AdminToken}`)
+        .expect(200);
+
+      expect(org2PatientsResponse.body.patients).to.have.lengthOf(1);
+      expect(org2PatientsResponse.body.patients[0].email).to.equal("org2patient1@example.com");
+
+      // Verify org2 patients are not in org1 results
+      const org2EmailsInOrg1 = org1Response.body.patients.filter((p: any) => p.email.includes("org2"));
+      expect(org2EmailsInOrg1).to.have.lengthOf(0);
+
+      // Verify org1 patients are not in org2 results
+      const org1EmailsInOrg2 = org2PatientsResponse.body.patients.filter((p: any) => p.email.includes("org1"));
+      expect(org1EmailsInOrg2).to.have.lengthOf(0);
+    });
+
+    it("should handle edge cases for pagination parameters", async () => {
+      // Register 5 patients
+      for (let i = 1; i <= 5; i++) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send({
+            email: `patient${i}@example.com`,
+            password: "password123",
+            firstName: `Patient${i}`,
+            lastName: "Test",
+            dateOfBirth: "1990-01-15",
+            phoneNumber: `555000000${i}`,
+          })
+          .expect(201);
+      }
+
+      // Test with offset greater than total
+      const offsetTooHighResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 10, offset: 100 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(offsetTooHighResponse.body.total).to.equal(5);
+      expect(offsetTooHighResponse.body.patients).to.have.lengthOf(0);
+
+      // Test with limit 0
+      const limitZeroResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 0, offset: 0 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(limitZeroResponse.body.total).to.equal(5);
+      expect(limitZeroResponse.body.patients).to.have.lengthOf(0);
+
+      // Test with negative values (should be normalized to 0)
+      const negativeResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: -5, offset: -10 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(negativeResponse.body.limit).to.be.at.least(0);
+      expect(negativeResponse.body.offset).to.equal(0);
+    });
+
+    it("should verify server-side pagination does not fetch all records", async () => {
+      // Register 100 patients to test performance
+      for (let i = 1; i <= 100; i++) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send({
+            email: `patient${i}@example.com`,
+            password: "password123",
+            firstName: `Patient${i}`,
+            lastName: "Test",
+            dateOfBirth: "1990-01-15",
+            phoneNumber: `555${i.toString().padStart(7, '0')}`,
+          })
+          .expect(201);
+      }
+
+      // Request only first 10, verify total is correct
+      const response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 10, offset: 0 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(response.body.total).to.equal(100);
+      expect(response.body.patients).to.have.lengthOf(10);
+      expect(response.body.limit).to.equal(10);
+      expect(response.body.offset).to.equal(0);
+
+      // Request middle page
+      const middlePageResponse = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ limit: 10, offset: 50 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(middlePageResponse.body.total).to.equal(100);
+      expect(middlePageResponse.body.patients).to.have.lengthOf(10);
+      expect(middlePageResponse.body.offset).to.equal(50);
+    }).timeout(60000);
+
+    it("should maintain correct total count with combined search and pagination", async () => {
+      // Register patients with varying attributes
+      for (let i = 1; i <= 20; i++) {
+        await request(app)
+          .post(`/${organizationName}/patients/register`)
+          .send({
+            email: `patient${i}@example.com`,
+            password: "password123",
+            firstName: i <= 10 ? `John${i}` : `Jane${i}`,
+            lastName: "Doe",
+            dateOfBirth: "1990-01-15",
+            phoneNumber: `555${i.toString().padStart(7, '0')}`,
+          })
+          .expect(201);
+      }
+
+      // Search for "John" with pagination
+      const searchPage1Response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ q: "John", limit: 5, offset: 0 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(searchPage1Response.body.total).to.equal(10); // Only 10 Johns
+      expect(searchPage1Response.body.patients).to.have.lengthOf(5);
+
+      // Get second page of search results
+      const searchPage2Response = await request(app)
+        .get(`/${organizationName}/patients`)
+        .query({ q: "John", limit: 5, offset: 5 })
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      expect(searchPage2Response.body.total).to.equal(10);
+      expect(searchPage2Response.body.patients).to.have.lengthOf(5);
+
+      // Verify all results are Johns
+      searchPage1Response.body.patients.forEach((p: any) => {
+        expect(p.firstName).to.match(/^John/);
+      });
+      searchPage2Response.body.patients.forEach((p: any) => {
+        expect(p.firstName).to.match(/^John/);
+      });
+    });
+  });
 });

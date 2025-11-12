@@ -70,7 +70,7 @@ export interface Doctor {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'doctor';
+  role: 'DOCTOR';
   specialization: string;
   licenseNumber: string;
   phoneNumber?: string | null;
@@ -85,6 +85,31 @@ export interface CreateDoctorRequest {
   specialization: string;
   licenseNumber: string;
   phoneNumber?: string;
+}
+
+// Patient (for admin/doctor viewing)
+export interface Patient {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'PATIENT';
+  dateOfBirth: string; // ISO 8601 string returned by backend
+  phoneNumber: string;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  bloodType?: string | null;
+  allergies?: string | null;
+  chronicConditions?: string | null;
+}
+
+// Paginated response for patients list
+export interface PatientsResponse {
+  patients: Patient[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Appointment (doctor-facing/admin-facing only - not returned to patients)
