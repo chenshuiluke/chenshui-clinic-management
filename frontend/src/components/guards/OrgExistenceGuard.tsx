@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Spin, Card, Alert, Button } from 'antd';
-import { checkOrganizationExists, OrganizationExistsResult } from '../../api/organization';
+import { checkOrganizationExists } from '../../api/organization';
+import type { OrganizationExistsResult } from '../../api/organization';
 
 interface OrgExistenceGuardProps {
   children: React.ReactNode;

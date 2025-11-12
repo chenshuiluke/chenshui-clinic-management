@@ -16,6 +16,7 @@ import { securityLogger } from "../utils/logger";
 import { clearOrgCache } from "../middleware/org";
 import { CreateAdminUserDto, CreateOrganizationDto, OrgIdParam } from "../validators/organization";
 import { runMigrationsForSingleDistributedDb } from "../utils/migrations";
+import { sanitizeOrgName } from "../utils/organization";
 
 function isDatabaseError(error: unknown): error is Error & { code: string } {
   return error instanceof Error && 'code' in error && typeof (error as any).code === 'string';
@@ -242,11 +243,18 @@ export default class OrganizationController extends BaseController {
     const CONSTANT_DELAY_MS = 100; // Small constant-time delay to mitigate timing attacks
 
     try {
-      const orgName = req.params.orgName;
+      let orgSlug = req.params.orgName;
+      if (!orgSlug) {
+        res.status(400).json({ error: "Organization name is required" });
+        return;
+      }
+      // Decode URL-encoded organization name
+      orgSlug = decodeURIComponent(orgSlug);
       const db = this.getCentralDb(req);
 
-      const orgs = await db.select().from(organizationTable).where(eq(organizationTable.name, orgName)).limit(1);
-      const organization = orgs.length > 0 ? orgs[0] : null;
+      // Fetch all organizations and find one whose sanitized name matches the slug
+      const allOrgs = await db.select().from(organizationTable);
+      const organization = allOrgs.find(org => sanitizeOrgName(org.name) === sanitizeOrgName(orgSlug));
 
       // Add remaining delay to reach constant time
       const elapsed = Date.now() - startTime;

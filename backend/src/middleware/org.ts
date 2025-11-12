@@ -9,6 +9,7 @@ import * as centralSchema from "../db/schema/central/schema";
 import * as distributedSchema from "../db/schema/distributed/schema";
 import * as distributedRelations from "../db/schema/distributed/relations";
 import type { OrganizationUserWithProfile } from "./auth";
+import { sanitizeOrgName } from "../utils/organization";
 
 // This adds organization and Drizzle database instances as fields to the request object
 declare global {
@@ -29,27 +30,27 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 1000; // Maximum number of cached org names
 
 /**
- * Check if organization exists in central database
+ * Check if organization exists in central database and return the actual org name
  */
-async function organizationExists(orgName: string): Promise<boolean> {
+async function findOrganizationBySlug(orgSlug: string): Promise<string | null> {
   // Check cache first
-  const cached = orgExistenceCache.get(orgName);
+  const cached = orgExistenceCache.get(orgSlug);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     // Move to end (LRU behavior)
-    orgExistenceCache.delete(orgName);
-    orgExistenceCache.set(orgName, cached);
-    return cached.exists;
+    orgExistenceCache.delete(orgSlug);
+    orgExistenceCache.set(orgSlug, cached);
+    return cached.exists ? orgSlug : null;
   }
 
   try {
     const db = await getDrizzleDb();
-    const result = await db
-      .select()
-      .from(organizationTable)
-      .where(eq(organizationTable.name, orgName))
-      .limit(1);
+    const allOrgs = await db.select().from(organizationTable);
 
-    const exists = result.length > 0;
+    // Find an organization whose sanitized name matches the slug
+    const matchedOrg = allOrgs.find(org => sanitizeOrgName(org.name) === sanitizeOrgName(orgSlug));
+
+    const exists = !!matchedOrg;
+    const actualOrgName = matchedOrg?.name || null;
 
     // Implement LRU eviction: if cache is full, remove oldest entry
     if (orgExistenceCache.size >= MAX_CACHE_SIZE) {
@@ -60,12 +61,12 @@ async function organizationExists(orgName: string): Promise<boolean> {
     }
 
     // Update cache
-    orgExistenceCache.set(orgName, { exists, timestamp: Date.now() });
+    orgExistenceCache.set(orgSlug, { exists, timestamp: Date.now() });
 
-    return exists;
+    return actualOrgName;
   } catch (error) {
-    logger.error({ error, orgName }, 'Failed to check organization existence');
-    return false;
+    logger.error({ error, orgSlug }, 'Failed to check organization existence');
+    return null;
   }
 }
 
@@ -125,9 +126,10 @@ export function orgContext(
         }
 
         // Verify organization exists before creating ORM connection
-        const exists = await organizationExists(orgName);
+        // orgName from URL might be sanitized (e.g., "test_org_1"), we need to find the actual org name
+        const actualOrgName = await findOrganizationBySlug(orgName);
 
-        if (!exists) {
+        if (!actualOrgName) {
           // Don't create ORM for non-existent organizations
           logger.warn({ orgName, path: req.path }, 'Request for non-existent organization');
 
@@ -141,9 +143,9 @@ export function orgContext(
           return; // Important: return after sending response
         }
 
-        // Organization exists, create Drizzle connection
-        const orgDb = await getOrgDb(orgName);
-        req.organization = orgName;
+        // Organization exists, create Drizzle connection using the actual org name
+        const orgDb = await getOrgDb(actualOrgName);
+        req.organization = actualOrgName;
 
         // Attach plain Drizzle DB instances (not transactions)
         // Controllers will use db.transaction() for operations requiring atomicity
