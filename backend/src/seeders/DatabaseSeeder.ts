@@ -37,7 +37,7 @@ export async function seedCentralDatabase(
 
     console.log("Database seeded successfully!");
     console.log(
-      `Created user: ${user.email} with password: TestPassword123!@#`,
+      `Created user: ${user!.email} with password: TestPassword123!@#`,
     );
   } catch (error) {
     console.error("Seeding failed:", error);

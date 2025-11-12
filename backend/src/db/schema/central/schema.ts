@@ -16,8 +16,8 @@ import { sql } from "drizzle-orm"
  */
 export const userTable = pgTable("user", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	email: varchar({ length: 255 }).notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	password: varchar({ length: 255 }).notNull(),
@@ -36,8 +36,8 @@ export const userTable = pgTable("user", {
  */
 export const organizationTable = pgTable("organization", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	name: varchar({ length: 255 }).notNull(),
 }, (table) => {
 	return {

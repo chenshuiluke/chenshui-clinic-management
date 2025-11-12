@@ -25,8 +25,8 @@ export const appointmentStatus = pgEnum("appointment_status", ['PENDING', 'APPRO
  */
 export const adminProfileTable = pgTable("admin_profile", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 });
 
 /**
@@ -35,8 +35,8 @@ export const adminProfileTable = pgTable("admin_profile", {
  */
 export const doctorProfileTable = pgTable("doctor_profile", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	specialization: varchar({ length: 255 }).default('').notNull(),
 	licenseNumber: varchar("license_number", { length: 255 }).default('').notNull(),
 	phoneNumber: varchar("phone_number", { length: 255 }),
@@ -48,8 +48,8 @@ export const doctorProfileTable = pgTable("doctor_profile", {
  */
 export const patientProfileTable = pgTable("patient_profile", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	dateOfBirth: timestamp("date_of_birth", { withTimezone: true, mode: 'date' }).notNull(),
 	phoneNumber: varchar("phone_number", { length: 255 }).default('').notNull(),
 	address: varchar({ length: 255 }),
@@ -68,8 +68,8 @@ export const patientProfileTable = pgTable("patient_profile", {
  */
 export const organizationUserTable = pgTable("organization_user", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	email: varchar({ length: 255 }).notNull(),
 	password: varchar({ length: 255 }).notNull(),
 	firstName: varchar("first_name", { length: 255 }).notNull(),
@@ -110,8 +110,8 @@ export const organizationUserTable = pgTable("organization_user", {
  */
 export const appointmentTable = pgTable("appointment", {
 	id: serial().primaryKey().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
 	patientId: integer("patient_id"),
 	doctorId: integer("doctor_id"),
 	appointmentDateTime: timestamp("appointment_date_time", { withTimezone: true, mode: 'date' }).notNull(),

@@ -78,7 +78,7 @@ export function orgContext(
   next: NextFunction,
 ): void {
   // Check if path starts with an organization name
-  const match = req.path.match(/^\/([^\/]+)(\/.*)?$/);
+  const match = req.url.match(/^\/([^\/]+)(\/.*)?$/);
 
   // List of known system routes that should not be treated as organizations
   const systemRoutes = [
@@ -127,7 +127,7 @@ export function orgContext(
           res.status(404).json({
             error: "Organization not found"
           });
-          return;
+          return; // Important: return after sending response
         }
 
         // Organization exists, create Drizzle connection
@@ -139,14 +139,23 @@ export function orgContext(
         req.db = orgDb;
         req.centralDb = await getDrizzleDb();
 
-        next();
+        next(); // Call next() on success
       } catch (error) {
         logger.error({ error, orgName }, 'Failed to create org database connection');
-        res.status(500).json({
-          error: "Failed to connect to organization database"
-        });
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: "Failed to connect to organization database"
+          });
+        }
+        // Don't call next() on error - response already sent
       }
-    })();
+    })().catch(error => {
+      // Catch any unhandled promise rejections from the async IIFE itself
+      logger.error({ error, orgName }, 'Unhandled error in orgContext middleware');
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
   } else {
     // Use central database for non-organization requests
     getDrizzleDb()
@@ -158,7 +167,9 @@ export function orgContext(
       })
       .catch(error => {
         logger.error({ error, path: req.path }, 'Failed to get central database');
-        res.status(500).json({ error: "Internal server error" });
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Internal server error" });
+        }
       });
   }
 }

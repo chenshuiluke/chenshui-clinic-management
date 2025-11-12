@@ -30,6 +30,7 @@ import {
   NewOrganization,
 } from "../db/schema/central/types";
 import { runCentralMigrations } from "../utils/migrations";
+import request from "supertest";
 
 let cachedDb: NodePgDatabase<typeof centralSchema> | null = null;
 let cachedApp: express.Application | null = null;
@@ -160,6 +161,33 @@ export async function createTestOrganization(
     throw new Error("Failed to create test organization");
   }
   return org;
+}
+
+/**
+ * Create a test organization via API, which also creates its database.
+ */
+export async function createTestOrganizationWithDb(
+  app: express.Application,
+  authToken: string,
+  data: Partial<{ name: string }> = {},
+): Promise<DrizzleOrganization> {
+  const orgName = data.name || `test-org-${Date.now()}`;
+
+  const response = await request(app)
+    .post("/organizations")
+    .set("Authorization", `Bearer ${authToken}`)
+    .send({ name: orgName })
+    .expect(201);
+
+  const organization = response.body;
+  if (!organization || !organization.name) {
+    throw new Error("Failed to create organization via API or invalid response");
+  }
+
+  // Track for cleanup
+  trackOrganization(organization.name);
+
+  return organization;
 }
 
 /**

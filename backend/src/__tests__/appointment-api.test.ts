@@ -429,10 +429,10 @@ describe("Appointment API", () => {
       // Verify count in database
       const orgDb = await getOrgDb(organizationName);
       const result = await orgDb
-        .select({ count: sql<number>`count(*)` })
+        .select({ count: sql<number>`count(*)::int` })
         .from(appointmentTable)
         .where(eq(appointmentTable.patientId, patientId));
-      const count = result[0]!.count;
+      const count = Number(result[0]!.count);
       expect(count, "Should have at least 3 appointments (including beforeEach)").to.be.at.least(3);
     });
 

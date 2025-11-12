@@ -55,7 +55,7 @@ export async function createApp(): Promise<express.Application> {
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
     : isDevelopment
-      ? ['http://localhost:5173', 'http://frontend:5173'] // Default for development only
+      ? ['http://localhost:5173', 'http://frontend:5173', 'http://localhost:3000'] // Default for development only
       : []; // Empty array in non-development if not configured
 
   // Throw error if no CORS origins configured in production

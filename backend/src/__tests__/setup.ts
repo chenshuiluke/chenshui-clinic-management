@@ -10,6 +10,8 @@ import { closeAllOrgConnections as closeDrizzleOrgConnections } from "../db/driz
 // Global setup - runs once before all test files
 before(async function () {
   process.env.NODE_ENV = "test"; // Ensure NODE_ENV is 'test' before app creation
+  process.env.DB_HOST = 'clinic-db-test';
+  process.env.DB_PORT = '5432';
   await setupTestEnvironment();
 });
 

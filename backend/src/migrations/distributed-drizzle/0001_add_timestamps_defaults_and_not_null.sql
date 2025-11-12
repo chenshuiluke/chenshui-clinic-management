@@ -1,0 +1,20 @@
+ALTER TABLE "admin_profile" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "admin_profile" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "admin_profile" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "admin_profile" ALTER COLUMN "updated_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "appointment" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "appointment" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "appointment" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "appointment" ALTER COLUMN "updated_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "doctor_profile" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "doctor_profile" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "doctor_profile" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "doctor_profile" ALTER COLUMN "updated_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "organization_user" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "organization_user" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "organization_user" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "organization_user" ALTER COLUMN "updated_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "patient_profile" ALTER COLUMN "created_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "patient_profile" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
+ALTER TABLE "patient_profile" ALTER COLUMN "updated_at" SET DEFAULT now();--> statement-breakpoint
+ALTER TABLE "patient_profile" ALTER COLUMN "updated_at" SET NOT NULL;
