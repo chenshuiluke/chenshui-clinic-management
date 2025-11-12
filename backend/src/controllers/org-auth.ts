@@ -1,24 +1,30 @@
 import { Request, Response } from "express";
-import { RequestContext } from "@mikro-orm/core";
-import OrganizationUser from "../entities/distributed/organization_user";
+import { eq } from "drizzle-orm";
+import { organizationUserTable } from "../db/schema/distributed/schema";
+import { OrganizationUser } from "../db/schema/distributed/types";
 import jwtService from "../services/jwt.service";
 import { OrgJWTPayload } from "../config/jwt.config";
 import cryptoService from "../utils/crypto";
 import { securityLogger } from "../utils/logger";
 import { OrgLoginDto, OrgRefreshTokenDto } from "../validators/auth";
+import { getUserRole } from "../middleware/auth";
+import BaseController from "./base";
 
-export class OrgAuthController {
+export class OrgAuthController extends BaseController {
   async login(req: Request, res: Response): Promise<void> {
     try {
       const { email, password }: OrgLoginDto = req.body;
-      const em = RequestContext.getEntityManager()!;
+      const db = this.getDb(req);
       const ip = req.ip || 'unknown';
 
-      const user = await em.findOne(
-        OrganizationUser,
-        { email },
-        { populate: ["adminProfile", "doctorProfile", "patientProfile"] }
-      );
+      const user = await db.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, email),
+        with: {
+          adminProfile: true,
+          doctorProfile: true,
+          patientProfile: true,
+        },
+      });
 
       if (!user) {
         securityLogger.loginFailed(email, `User not found in org ${req.organization}`, ip);
@@ -30,6 +36,12 @@ export class OrgAuthController {
       if (!passwordValid) {
         securityLogger.loginFailed(email, `Invalid password in org ${req.organization}`, ip);
         res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      // Check if user has a role assigned
+      if (!user.adminProfile && !user.doctorProfile && !user.patientProfile) {
+        res.status(403).json({ error: 'User role not assigned' });
         return;
       }
 
@@ -45,8 +57,7 @@ export class OrgAuthController {
         jwtService.generateTokenPair(payload);
 
       // Hash the plain refresh token for storage
-      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
-      await em.flush();
+      await db.update(organizationUserTable).set({ refreshToken: await cryptoService.hashRefreshToken(refreshTokenPlain), updatedAt: new Date() }).where(eq(organizationUserTable.id, user.id));
 
       securityLogger.loginAttempt(email, true, ip);
 
@@ -58,7 +69,7 @@ export class OrgAuthController {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.getRole(),
+          role: getUserRole(user),
         },
       });
     } catch (error) {
@@ -94,12 +105,15 @@ export class OrgAuthController {
         return;
       }
 
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(
-        OrganizationUser,
-        { id: decoded.userId },
-        { populate: ["adminProfile", "doctorProfile", "patientProfile"] }
-      );
+      const db = this.getDb(req);
+      const user = await db.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.id, decoded.userId),
+        with: {
+          adminProfile: true,
+          doctorProfile: true,
+          patientProfile: true,
+        },
+      });
 
       if (!user || !user.refreshToken) {
         res.status(401).json({ error: "Invalid refresh token" });
@@ -133,8 +147,7 @@ export class OrgAuthController {
       } = jwtService.generateTokenPair(payload);
 
       // Update stored refresh token hash
-      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
-      await em.flush();
+      await db.update(organizationUserTable).set({ refreshToken: await cryptoService.hashRefreshToken(refreshTokenPlain), updatedAt: new Date() }).where(eq(organizationUserTable.id, user.id));
 
       securityLogger.tokenRefreshed(user.id, req.organization);
 
@@ -143,21 +156,15 @@ export class OrgAuthController {
         refreshToken: newRefreshToken // Return new refresh token for rotation
       });
     } catch (error) {
-      res.status(401).json({ error: "Invalid refresh token" });
+      console.error("Refresh error:", error);
+      res.status(500).json({ error: "Refresh failed" });
     }
   }
 
   async logout(req: Request, res: Response): Promise<void> {
     try {
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(OrganizationUser, {
-        id: req.user!.userId,
-      });
-
-      if (user) {
-        user.refreshToken = null;
-        await em.flush();
-      }
+      const db = this.getDb(req);
+      await db.update(organizationUserTable).set({ refreshToken: null, updatedAt: new Date() }).where(eq(organizationUserTable.id, req.user!.userId));
 
       securityLogger.logout(req.user!.userId, req.organization);
 
@@ -169,15 +176,24 @@ export class OrgAuthController {
 
   async me(req: Request, res: Response): Promise<void> {
     try {
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(
-        OrganizationUser,
-        { id: req.user!.userId },
-        { populate: ["adminProfile", "doctorProfile", "patientProfile"] }
-      );
+      const db = this.getDb(req);
+      const user = await db.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.id, req.user!.userId),
+        with: {
+          adminProfile: true,
+          doctorProfile: true,
+          patientProfile: true,
+        },
+      });
 
       if (!user) {
         res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      // Check if user has a role assigned
+      if (!user.adminProfile && !user.doctorProfile && !user.patientProfile) {
+        res.status(403).json({ error: 'User role not assigned' });
         return;
       }
 
@@ -186,7 +202,7 @@ export class OrgAuthController {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.getRole(),
+        role: getUserRole(user),
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch user data" });

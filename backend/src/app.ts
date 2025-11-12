@@ -1,29 +1,23 @@
-import { RequestContext } from "@mikro-orm/core";
-import { MikroORM } from "@mikro-orm/postgresql";
-import express, { Request, Response, NextFunction } from "express";
-import dotenv from "dotenv";
-import cors from "cors";
-import helmet from "helmet";
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import dotenv from 'dotenv';
+import logger from './utils/logger';
+import { generalApiRateLimit } from './middleware/rate-limit';
+import { orgContext } from './middleware/org';
+import { authenticate } from './middleware/auth';
+import AuthRouter from './routes/auth';
+import OrganizationRouter from './routes/organization';
+import OrgAuthRouter from './routes/org-auth';
+import DoctorRouter from './routes/doctor';
+import PatientRouter from './routes/patient';
+import AppointmentRouter from './routes/appointment';
+import { getDrizzleDb, closePool } from './db/drizzle-centralized-db';
+import { closeAllOrgConnections as closeDrizzleOrgConnections } from './db/drizzle-organization-db';
+import { runCentralMigrations, runMigrationsForDistributedDbs } from './utils/migrations';
+import { organizationTable } from "./db/schema/central/schema";
 
-import {
-  runMigrations,
-  runMigrationsForDistributedDbs,
-} from "./utils/migrations";
-import OrganizationRouter from "./routes/organization";
-import AuthRouter from "./routes/auth";
-import OrgAuthRouter from "./routes/org-auth";
-import DoctorRouter from "./routes/doctor";
-import PatientRouter from "./routes/patient";
-import AppointmentRouter from "./routes/appointment";
-import { authenticate } from "./middleware/auth";
-import { orgContext } from "./middleware/org";
-import { generalApiRateLimit } from "./middleware/rate-limit";
-import { getOrm } from "./db/centralized-db";
-import { closeAllOrgConnections } from "./db/organization-db";
-import Organization from "./entities/central/organization";
-import logger from "./utils/logger";
-
-export async function createApp(orm: MikroORM): Promise<express.Application> {
+export async function createApp(): Promise<express.Application> {
   const app = express();
 
   // Disable x-powered-by header to avoid leaking technology stack
@@ -116,11 +110,6 @@ export async function createApp(orm: MikroORM): Promise<express.Application> {
   // General API rate limiting
   app.use(generalApiRateLimit);
 
-  // MikroORM RequestContext middleware for central database
-  app.use((req, res, next) => {
-    RequestContext.create(orm.em, next);
-  });
-
   // Apply organization context middleware
   app.use(orgContext);
 
@@ -189,36 +178,34 @@ export async function bootstrap(port = 3000) {
 
   try {
     // Initialize database connection with retry logic
-    console.log('Connecting to central database...');
-    console.log('Database config:', {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'clinic_db'
-    });
-    const centralOrm = await getOrm();
-    console.log('Central database connection established successfully');
+    console.log('Initializing Drizzle ORM connections...');
+    const centralDrizzleDb = await getDrizzleDb();
+    console.log('Drizzle ORM centralized database connection established');
 
     // Run migrations
     console.log('Running migrations...');
-    await runMigrations(centralOrm);
+    await runCentralMigrations();
     console.log(`Migrations completed successfully`);
 
     // Setup organization databases
     console.log('Setting up organization databases...');
-    const existingOrgs = await centralOrm.em.fork().find(Organization, {});
+    const centralDb = await getDrizzleDb();
+    const existingOrgs = await centralDb.select().from(organizationTable);
     console.log(`Found ${existingOrgs.length} existing organization(s)`);
-    await runMigrationsForDistributedDbs(existingOrgs, false);
+    await runMigrationsForDistributedDbs(existingOrgs.map((org) => ({ name: org.name })));
     console.log(`Organization databases ready. Initialized ${existingOrgs.length} organization database(s)`);
 
     // Create Express app
     console.log('Creating Express application...');
-    const app = await createApp(centralOrm);
+    const app = await createApp();
     console.log('Express application created successfully');
 
     process.on("SIGTERM", async () => {
       console.log('Received SIGTERM, shutting down gracefully...');
-      await closeAllOrgConnections();
-      await centralOrm.close();
+      console.log('Closing database connections...');
+      await closeDrizzleOrgConnections();
+      await closePool();
+      console.log('All database connections closed successfully');
       process.exit(0);
     });
 

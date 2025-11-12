@@ -1,26 +1,48 @@
 import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
-import Appointment, { AppointmentStatus } from "../entities/distributed/appointment";
-import OrganizationUser, { OrganizationUserRole } from "../entities/distributed/organization_user";
-import AdminProfile from "../entities/distributed/admin_profile";
-import PatientProfile from "../entities/distributed/patient_profile";
-import DoctorProfile from "../entities/distributed/doctor_profile";
+import { eq, sql } from "drizzle-orm";
+import {
+  appointmentTable,
+  organizationUserTable,
+  adminProfileTable,
+  patientProfileTable,
+  doctorProfileTable,
+} from "../db/schema/distributed/schema";
+import {
+  Appointment,
+  OrganizationUser,
+  AdminProfile,
+  PatientProfile,
+  DoctorProfile,
+} from "../db/schema/distributed/types";
+import {
+  OrganizationUserRole,
+} from "../db/schema/distributed/enums";
 import {
   getApp,
-  getOrm,
   createTestUser,
   trackOrganization,
   getSentEmails,
+  getDb,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
-import { getOrgEm } from "../db/organization-db";
+import { getOrgDb } from "../db/drizzle-organization-db";
 import { OrgJWTPayload } from "../config/jwt.config";
 import { emailService } from "../services/email.service";
 
+// Local enum for test assertions (matches database enum)
+enum AppointmentStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  DECLINED = "DECLINED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+}
+
 describe("Appointment API", () => {
   let app: ReturnType<typeof getApp>;
-  let orm: ReturnType<typeof getOrm>;
+  let db: any;
   let organizationName: string;
   let adminToken: string;
   let doctorToken: string;
@@ -36,10 +58,10 @@ describe("Appointment API", () => {
 
   beforeEach(async () => {
     app = getApp();
-    orm = getOrm();
+    db = getDb();
 
     // Create a central user for creating organizations
-    const centralUser = await createTestUser(orm, {
+    const centralUser = await createTestUser(db, {
       email: "central@test.com",
       name: "Central Admin",
       password: "password123",
@@ -49,7 +71,7 @@ describe("Appointment API", () => {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
-      type: 'central'
+      type: "central",
     });
 
     // Create organization via API (this creates the database too)
@@ -63,129 +85,166 @@ describe("Appointment API", () => {
     trackOrganization(organizationName);
 
     // Create an admin user, doctor, and patients in the organization database
-    const orgEm = await getOrgEm(organizationName);
+    const orgDb = await getOrgDb(organizationName);
     const hashedPassword = await jwtService.hashPassword("testpass123");
 
-    // Create admin
-    const adminProfile = orgEm.create(AdminProfile, {});
-    const adminUser = orgEm.create(OrganizationUser, {
-      email: "admin@hospital.com",
-      password: hashedPassword,
-      firstName: "Admin",
-      lastName: "User",
-      adminProfile,
+    const result = await orgDb.transaction(async (tx) => {
+      // Create admin
+      const [adminProfile] = await tx.insert(adminProfileTable).values({}).returning();
+      const [adminUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "admin@hospital.com",
+          password: hashedPassword,
+          firstName: "Admin",
+          lastName: "User",
+          adminProfileId: adminProfile!.id,
+        })
+        .returning();
+
+      // Create first doctor
+      const [doctorProfile] = await tx
+        .insert(doctorProfileTable)
+        .values({
+          specialization: "Cardiology",
+          licenseNumber: "MD123456",
+        })
+        .returning();
+      const [doctorUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "doctor@hospital.com",
+          password: hashedPassword,
+          firstName: "Doctor",
+          lastName: "Smith",
+          doctorProfileId: doctorProfile!.id,
+        })
+        .returning();
+
+      // Create second doctor
+      const [secondDoctorProfile] = await tx
+        .insert(doctorProfileTable)
+        .values({
+          specialization: "Neurology",
+          licenseNumber: "MD789012",
+        })
+        .returning();
+      const [secondDoctorUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "doctor2@hospital.com",
+          password: hashedPassword,
+          firstName: "Doctor",
+          lastName: "Jones",
+          doctorProfileId: secondDoctorProfile!.id,
+        })
+        .returning();
+
+      // Create first patient
+      const [patientProfile] = await tx
+        .insert(patientProfileTable)
+        .values({
+          dateOfBirth: new Date("1990-01-15"),
+          phoneNumber: "5551234567",
+          ipAddress: "127.0.0.1",
+        })
+        .returning();
+      const [patientUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "patient@hospital.com",
+          password: hashedPassword,
+          firstName: "John",
+          lastName: "Doe",
+          patientProfileId: patientProfile!.id,
+        })
+        .returning();
+
+      // Create second patient
+      const [secondPatientProfile] = await tx
+        .insert(patientProfileTable)
+        .values({
+          dateOfBirth: new Date("1985-05-20"),
+          phoneNumber: "5559876543",
+          ipAddress: "127.0.0.1",
+        })
+        .returning();
+      const [secondPatientUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "patient2@hospital.com",
+          password: hashedPassword,
+          firstName: "Jane",
+          lastName: "Smith",
+          patientProfileId: secondPatientProfile!.id,
+        })
+        .returning();
+
+      return {
+        adminUser,
+        doctorUser,
+        secondDoctorUser,
+        patientUser,
+        secondPatientUser,
+      };
     });
 
-    // Create doctor
-    const doctorProfile = orgEm.create(DoctorProfile, {
-      specialization: "Cardiology",
-      licenseNumber: "MD123456",
-    });
-    const doctorUser = orgEm.create(OrganizationUser, {
-      email: "doctor@hospital.com",
-      password: hashedPassword,
-      firstName: "Doctor",
-      lastName: "Smith",
-      doctorProfile,
-    });
+    const {
+      adminUser,
+      doctorUser,
+      secondDoctorUser,
+      patientUser,
+      secondPatientUser,
+    } = result;
 
-    // Create second doctor
-    const secondDoctorProfile = orgEm.create(DoctorProfile, {
-      specialization: "Neurology",
-      licenseNumber: "MD789012",
-    });
-    const secondDoctorUser = orgEm.create(OrganizationUser, {
-      email: "doctor2@hospital.com",
-      password: hashedPassword,
-      firstName: "Doctor",
-      lastName: "Jones",
-      doctorProfile: secondDoctorProfile,
-    });
-
-    // Create patient
-    const patientProfile = orgEm.create(PatientProfile, {
-      dateOfBirth: new Date("1990-01-15"),
-      phoneNumber: "5551234567",
-      ipAddress: '127.0.0.1',
-    });
-    const patientUser = orgEm.create(OrganizationUser, {
-      email: "patient@hospital.com",
-      password: hashedPassword,
-      firstName: "John",
-      lastName: "Doe",
-      patientProfile,
-    });
-
-    // Create second patient
-    const secondPatientProfile = orgEm.create(PatientProfile, {
-      dateOfBirth: new Date("1985-05-20"),
-      phoneNumber: "5559876543",
-      ipAddress: '127.0.0.1',
-    });
-    const secondPatientUser = orgEm.create(OrganizationUser, {
-      email: "patient2@hospital.com",
-      password: hashedPassword,
-      firstName: "Jane",
-      lastName: "Smith",
-      patientProfile: secondPatientProfile,
-    });
-
-    await orgEm.persistAndFlush([
-      adminProfile, adminUser,
-      doctorProfile, doctorUser,
-      secondDoctorProfile, secondDoctorUser,
-      patientProfile, patientUser,
-      secondPatientProfile, secondPatientUser,
-    ]);
-
-    doctorId = doctorUser.id;
-    patientId = patientUser.id;
-    secondPatientId = secondPatientUser.id;
-    secondDoctorId = secondDoctorUser.id;
+    doctorId = doctorUser!.id;
+    patientId = patientUser!.id;
+    secondPatientId = secondPatientUser!.id;
+    secondDoctorId = secondDoctorUser!.id;
 
     // Generate tokens
     const adminPayload: OrgJWTPayload = {
-      userId: adminUser.id,
-      email: adminUser.email,
-      name: `${adminUser.firstName} ${adminUser.lastName}`,
+      userId: adminUser!.id,
+      email: adminUser!.email,
+      name: `${adminUser!.firstName} ${adminUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     adminToken = jwtService.generateAccessToken(adminPayload);
 
     const doctorPayload: OrgJWTPayload = {
-      userId: doctorUser.id,
-      email: doctorUser.email,
-      name: `${doctorUser.firstName} ${doctorUser.lastName}`,
+      userId: doctorUser!.id,
+      email: doctorUser!.email,
+      name: `${doctorUser!.firstName} ${doctorUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     doctorToken = jwtService.generateAccessToken(doctorPayload);
 
     const secondDoctorPayload: OrgJWTPayload = {
-      userId: secondDoctorUser.id,
-      email: secondDoctorUser.email,
-      name: `${secondDoctorUser.firstName} ${secondDoctorUser.lastName}`,
+      userId: secondDoctorUser!.id,
+      email: secondDoctorUser!.email,
+      name: `${secondDoctorUser!.firstName} ${secondDoctorUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     secondDoctorToken = jwtService.generateAccessToken(secondDoctorPayload);
 
     const patientPayload: OrgJWTPayload = {
-      userId: patientUser.id,
-      email: patientUser.email,
-      name: `${patientUser.firstName} ${patientUser.lastName}`,
+      userId: patientUser!.id,
+      email: patientUser!.email,
+      name: `${patientUser!.firstName} ${patientUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     patientToken = jwtService.generateAccessToken(patientPayload);
 
     const secondPatientPayload: OrgJWTPayload = {
-      userId: secondPatientUser.id,
-      email: secondPatientUser.email,
-      name: `${secondPatientUser.firstName} ${secondPatientUser.lastName}`,
+      userId: secondPatientUser!.id,
+      email: secondPatientUser!.email,
+      name: `${secondPatientUser!.firstName} ${secondPatientUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     secondPatientToken = jwtService.generateAccessToken(secondPatientPayload);
 
@@ -222,18 +281,25 @@ describe("Appointment API", () => {
         })
         .expect(201);
 
-      expect(response.body, `Expected id in response but got: ${JSON.stringify(response.body)}`).to.have.property("id");
+      expect(
+        response.body,
+        `Expected id in response but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("id");
       expect(response.body).to.have.property("status", AppointmentStatus.PENDING);
       expect(response.body).to.have.property("notes", "Regular checkup");
       expect(response.body.doctor).to.have.property("id", doctorId);
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: response.body.id });
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, response.body.id));
+      const apt = apts.length > 0 ? apts[0] : null;
       expect(apt, "Appointment should exist in database").to.not.be.null;
       expect(apt!.status).to.equal(AppointmentStatus.PENDING);
-      expect(apt!.patient?.id).to.equal(patientId);
-      expect(apt!.doctor?.id).to.equal(doctorId);
+      expect(apt!.patientId).to.equal(patientId);
+      expect(apt!.doctorId).to.equal(doctorId);
 
       // Verify email was sent to doctor
       const sentEmails = getSentEmails();
@@ -254,7 +320,10 @@ describe("Appointment API", () => {
         })
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-patient roles (doctor)", async () => {
@@ -270,7 +339,10 @@ describe("Appointment API", () => {
         })
         .expect(403);
 
-      expect(response.body, `Expected patient access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected patient access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should validate doctorId as positive integer", async () => {
@@ -286,7 +358,10 @@ describe("Appointment API", () => {
         })
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should require future datetime", async () => {
@@ -302,7 +377,10 @@ describe("Appointment API", () => {
         })
         .expect(400);
 
-      expect(response.body, `Expected validation error for past date but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error for past date but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should reject non-existent doctor", async () => {
@@ -318,7 +396,10 @@ describe("Appointment API", () => {
         })
         .expect(404);
 
-      expect(response.body, `Expected doctor not found error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Doctor not found");
+      expect(
+        response.body,
+        `Expected doctor not found error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Doctor not found");
     });
 
     it("should allow booking multiple appointments", async () => {
@@ -346,8 +427,12 @@ describe("Appointment API", () => {
         .expect(201);
 
       // Verify count in database
-      const em = await getOrgEm(organizationName);
-      const count = await em.count(Appointment, { patient: patientId });
+      const orgDb = await getOrgDb(organizationName);
+      const result = await orgDb
+        .select({ count: sql<number>`count(*)` })
+        .from(appointmentTable)
+        .where(eq(appointmentTable.patientId, patientId));
+      const count = result[0]!.count;
       expect(count, "Should have at least 3 appointments (including beforeEach)").to.be.at.least(3);
     });
 
@@ -365,9 +450,13 @@ describe("Appointment API", () => {
         .expect(201);
 
       // Verify notes is null in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: response.body.id });
-      expect(apt!.notes).to.be.null;
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, response.body.id));
+      const apt = apts[0]!;
+      expect(apt.notes).to.be.null;
     });
   });
 
@@ -375,10 +464,13 @@ describe("Appointment API", () => {
     it("should return appointment history with doctor details", async () => {
       const response = await request(app)
         .get(`/${organizationName}/appointments/me`)
-        .set("Authorization", `Bearer ${patientToken}`)
+        .set("Authorization", `Bearer ${patientToken}`);
       expect(response.status).to.equal(200);
 
-      expect(response.body.appointments, `Expected appointments array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
+      expect(
+        response.body.appointments,
+        `Expected appointments array in response but got: ${JSON.stringify(response.body)}`,
+      ).to.be.an("array");
       expect(response.body).to.have.property("total");
       expect(response.body).to.have.property("limit");
       expect(response.body).to.have.property("offset");
@@ -400,7 +492,10 @@ describe("Appointment API", () => {
         .get(`/${organizationName}/appointments/me`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-patient roles", async () => {
@@ -409,7 +504,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(403);
 
-      expect(response.body, `Expected patient access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected patient access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should return empty array for patient with no appointments", async () => {
@@ -463,8 +561,12 @@ describe("Appointment API", () => {
 
       // Verify descending order
       for (let i = 0; i < response.body.appointments.length - 1; i++) {
-        const date1 = new Date(response.body.appointments[i].appointmentDateTime);
-        const date2 = new Date(response.body.appointments[i + 1].appointmentDateTime);
+        const date1 = new Date(
+          response.body.appointments[i].appointmentDateTime,
+        );
+        const date2 = new Date(
+          response.body.appointments[i + 1].appointmentDateTime,
+        );
         expect(date1.getTime()).to.be.at.least(date2.getTime());
       }
     });
@@ -497,7 +599,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
-      expect(response.body.appointments, `Expected appointments array in response but got: ${JSON.stringify(response.body)}`).to.be.an("array");
+      expect(
+        response.body.appointments,
+        `Expected appointments array in response but got: ${JSON.stringify(response.body)}`,
+      ).to.be.an("array");
       expect(response.body).to.have.property("total");
       expect(response.body).to.have.property("limit");
       expect(response.body).to.have.property("offset");
@@ -519,7 +624,10 @@ describe("Appointment API", () => {
         .get(`/${organizationName}/appointments/pending`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-doctor roles", async () => {
@@ -528,7 +636,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(403);
 
-      expect(response.body, `Expected doctor access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected doctor access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should return empty array for doctor with no pending appointments", async () => {
@@ -582,8 +693,12 @@ describe("Appointment API", () => {
 
       // Verify ascending order
       for (let i = 0; i < response.body.appointments.length - 1; i++) {
-        const date1 = new Date(response.body.appointments[i].appointmentDateTime);
-        const date2 = new Date(response.body.appointments[i + 1].appointmentDateTime);
+        const date1 = new Date(
+          response.body.appointments[i].appointmentDateTime,
+        );
+        const date2 = new Date(
+          response.body.appointments[i + 1].appointmentDateTime,
+        );
         expect(date1.getTime()).to.be.at.most(date2.getTime());
       }
     });
@@ -656,14 +771,21 @@ describe("Appointment API", () => {
         .expect(200);
 
       expect(response.body).to.have.property("id", testAppointmentId);
-      expect(response.body).to.have.property("status", AppointmentStatus.APPROVED);
+      expect(response.body).to.have.property(
+        "status",
+        AppointmentStatus.APPROVED,
+      );
       expect(response.body).to.have.property("patient");
       expect(response.body.patient).to.have.property("id", patientId);
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: testAppointmentId });
-      expect(apt!.status).to.equal(AppointmentStatus.APPROVED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, testAppointmentId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.APPROVED);
 
       // Verify email was sent to patient
       const sentEmails = getSentEmails();
@@ -677,7 +799,10 @@ describe("Appointment API", () => {
         .put(`/${organizationName}/appointments/${testAppointmentId}/approve`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-doctor roles", async () => {
@@ -686,7 +811,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(403);
 
-      expect(response.body, `Expected doctor access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected doctor access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should verify ownership - other doctor cannot approve", async () => {
@@ -695,7 +823,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondDoctorToken}`)
         .expect(403);
 
-      expect(response.body, `Expected authorization error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Not authorized to approve this appointment");
+      expect(
+        response.body,
+        `Expected authorization error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Not authorized to approve this appointment");
     });
 
     it("should only approve pending appointments", async () => {
@@ -711,7 +842,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected status validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Only pending appointments can be approved");
+      expect(
+        response.body,
+        `Expected status validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Only pending appointments can be approved");
     });
 
     it("should reject invalid appointment ID", async () => {
@@ -720,7 +854,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should reject non-existent appointment", async () => {
@@ -729,7 +866,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(404);
 
-      expect(response.body, `Expected not found error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Appointment not found");
+      expect(
+        response.body,
+        `Expected not found error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Appointment not found");
     });
 
     it("should include patient details in response", async () => {
@@ -752,13 +892,20 @@ describe("Appointment API", () => {
         .expect(200);
 
       expect(response.body).to.have.property("id", testAppointmentId);
-      expect(response.body).to.have.property("status", AppointmentStatus.DECLINED);
+      expect(response.body).to.have.property(
+        "status",
+        AppointmentStatus.DECLINED,
+      );
       expect(response.body).to.have.property("patient");
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: testAppointmentId });
-      expect(apt!.status).to.equal(AppointmentStatus.DECLINED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, testAppointmentId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.DECLINED);
 
       // Verify email was sent to patient
       const sentEmails = getSentEmails();
@@ -772,7 +919,10 @@ describe("Appointment API", () => {
         .put(`/${organizationName}/appointments/${testAppointmentId}/decline`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-doctor roles", async () => {
@@ -781,7 +931,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(403);
 
-      expect(response.body, `Expected doctor access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected doctor access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should verify ownership - other doctor cannot decline", async () => {
@@ -790,7 +943,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondDoctorToken}`)
         .expect(403);
 
-      expect(response.body, `Expected authorization error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Not authorized to decline this appointment");
+      expect(
+        response.body,
+        `Expected authorization error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Not authorized to decline this appointment");
     });
 
     it("should only decline pending appointments", async () => {
@@ -806,7 +962,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected status validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Only pending appointments can be declined");
+      expect(
+        response.body,
+        `Expected status validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Only pending appointments can be declined");
     });
 
     it("should reject invalid appointment ID", async () => {
@@ -815,7 +974,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should reject non-existent appointment", async () => {
@@ -824,7 +986,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(404);
 
-      expect(response.body, `Expected not found error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Appointment not found");
+      expect(
+        response.body,
+        `Expected not found error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Appointment not found");
     });
   });
 
@@ -836,13 +1001,23 @@ describe("Appointment API", () => {
         .expect(200);
 
       expect(response.body).to.have.property("id", testAppointmentId);
-      expect(response.body).to.have.property("status", AppointmentStatus.CANCELLED);
-      expect(response.body).to.have.property("message", "Appointment cancelled successfully");
+      expect(response.body).to.have.property(
+        "status",
+        AppointmentStatus.CANCELLED,
+      );
+      expect(response.body).to.have.property(
+        "message",
+        "Appointment cancelled successfully",
+      );
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: testAppointmentId });
-      expect(apt!.status).to.equal(AppointmentStatus.CANCELLED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, testAppointmentId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.CANCELLED);
 
       // Verify email was sent to doctor
       const sentEmails = getSentEmails();
@@ -864,7 +1039,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(200);
 
-      expect(response.body).to.have.property("status", AppointmentStatus.CANCELLED);
+      expect(response.body).to.have.property(
+        "status",
+        AppointmentStatus.CANCELLED,
+      );
     });
 
     it("should require patient authentication", async () => {
@@ -872,7 +1050,10 @@ describe("Appointment API", () => {
         .put(`/${organizationName}/appointments/${testAppointmentId}/cancel`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-patient roles", async () => {
@@ -881,7 +1062,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(403);
 
-      expect(response.body, `Expected patient access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected patient access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should verify ownership - other patient cannot cancel", async () => {
@@ -890,7 +1074,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondPatientToken}`)
         .expect(403);
 
-      expect(response.body, `Expected authorization error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Not authorized to cancel this appointment");
+      expect(
+        response.body,
+        `Expected authorization error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Not authorized to cancel this appointment");
     });
 
     it("should reject cancelling completed appointments", async () => {
@@ -911,7 +1098,13 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Cannot cancel completed, declined, or already cancelled appointments");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property(
+        "error",
+        "Cannot cancel completed, declined, or already cancelled appointments",
+      );
     });
 
     it("should reject invalid appointment ID", async () => {
@@ -920,7 +1113,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should reject non-existent appointment", async () => {
@@ -929,7 +1125,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(404);
 
-      expect(response.body, `Expected not found error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Appointment not found");
+      expect(
+        response.body,
+        `Expected not found error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Appointment not found");
     });
   });
 
@@ -950,13 +1149,20 @@ describe("Appointment API", () => {
         .expect(200);
 
       expect(response.body).to.have.property("id", testAppointmentId);
-      expect(response.body).to.have.property("status", AppointmentStatus.COMPLETED);
+      expect(response.body).to.have.property(
+        "status",
+        AppointmentStatus.COMPLETED,
+      );
       expect(response.body).to.have.property("patient");
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: testAppointmentId });
-      expect(apt!.status).to.equal(AppointmentStatus.COMPLETED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, testAppointmentId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.COMPLETED);
 
       // Verify email was sent to patient
       const sentEmails = getSentEmails();
@@ -970,7 +1176,10 @@ describe("Appointment API", () => {
         .put(`/${organizationName}/appointments/${testAppointmentId}/complete`)
         .expect(401);
 
-      expect(response.body, `Expected authentication error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected authentication error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should reject non-doctor roles", async () => {
@@ -979,7 +1188,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${patientToken}`)
         .expect(403);
 
-      expect(response.body, `Expected doctor access required error but got: ${JSON.stringify(response.body)}`).to.have.property("error");
+      expect(
+        response.body,
+        `Expected doctor access required error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error");
     });
 
     it("should verify ownership - other doctor cannot complete", async () => {
@@ -988,7 +1200,13 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${secondDoctorToken}`)
         .expect(403);
 
-      expect(response.body, `Expected authorization error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Not authorized to complete this appointment");
+      expect(
+        response.body,
+        `Expected authorization error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property(
+        "error",
+        "Not authorized to complete this appointment",
+      );
     });
 
     it("should only complete approved appointments - reject pending", async () => {
@@ -1006,11 +1224,19 @@ describe("Appointment API", () => {
 
       // Try to complete without approving
       const response = await request(app)
-        .put(`/${organizationName}/appointments/${bookResponse.body.id}/complete`)
+        .put(
+          `/${organizationName}/appointments/${bookResponse.body.id}/complete`,
+        )
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected status validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Only approved appointments can be marked as completed");
+      expect(
+        response.body,
+        `Expected status validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property(
+        "error",
+        "Only approved appointments can be marked as completed",
+      );
     });
 
     it("should reject invalid appointment ID", async () => {
@@ -1019,7 +1245,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body, `Expected validation error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Validation failed");
+      expect(
+        response.body,
+        `Expected validation error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Validation failed");
     });
 
     it("should reject non-existent appointment", async () => {
@@ -1028,7 +1257,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(404);
 
-      expect(response.body, `Expected not found error but got: ${JSON.stringify(response.body)}`).to.have.property("error", "Appointment not found");
+      expect(
+        response.body,
+        `Expected not found error but got: ${JSON.stringify(response.body)}`,
+      ).to.have.property("error", "Appointment not found");
     });
 
     it("should include patient details in response", async () => {
@@ -1076,12 +1308,18 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(200);
 
-      expect(completeResponse.body.status).to.equal(AppointmentStatus.COMPLETED);
+      expect(completeResponse.body.status).to.equal(
+        AppointmentStatus.COMPLETED,
+      );
 
       // Verify final status in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: aptId });
-      expect(apt!.status).to.equal(AppointmentStatus.COMPLETED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, aptId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.COMPLETED);
     });
 
     it("should support flow: book -> decline", async () => {
@@ -1109,9 +1347,13 @@ describe("Appointment API", () => {
       expect(declineResponse.body.status).to.equal(AppointmentStatus.DECLINED);
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: aptId });
-      expect(apt!.status).to.equal(AppointmentStatus.DECLINED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, aptId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.DECLINED);
     });
 
     it("should support flow: book -> cancel by patient", async () => {
@@ -1139,9 +1381,13 @@ describe("Appointment API", () => {
       expect(cancelResponse.body.status).to.equal(AppointmentStatus.CANCELLED);
 
       // Verify in database
-      const em = await getOrgEm(organizationName);
-      const apt = await em.findOne(Appointment, { id: aptId });
-      expect(apt!.status).to.equal(AppointmentStatus.CANCELLED);
+      const orgDb = await getOrgDb(organizationName);
+      const apts = await orgDb
+        .select()
+        .from(appointmentTable)
+        .where(eq(appointmentTable.id, aptId));
+      const apt = apts[0]!;
+      expect(apt.status).to.equal(AppointmentStatus.CANCELLED);
     });
 
     it("should reject invalid transitions: complete pending appointment", async () => {
@@ -1166,7 +1412,10 @@ describe("Appointment API", () => {
         .set("Authorization", `Bearer ${doctorToken}`)
         .expect(400);
 
-      expect(response.body).to.have.property("error", "Only approved appointments can be marked as completed");
+      expect(response.body).to.have.property(
+        "error",
+        "Only approved appointments can be marked as completed",
+      );
     });
   });
 });

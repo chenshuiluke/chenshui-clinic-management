@@ -9,7 +9,7 @@ describe('Central Admin Authentication', () => {
     });
   });
 
-  it('should login with valid credentials', { tags: '@focus' }, () => {
+  it('should login with valid credentials', /*{ tags: '@focus' },*/ () => {
     // Create a unique central admin user for this test
     const timestamp = Date.now();
     const email = `admin-${timestamp}@test.com`;

@@ -7,6 +7,16 @@ import {
 import format from "pg-format";
 import { secretsManagerService } from "./secrets-manager.service";
 
+/**
+ * Organization Database Management Service
+ *
+ * This service handles physical PostgreSQL database creation and deletion
+ * for multi-tenant organizations. It uses raw pg.Client for admin operations
+ * that cannot be performed through an ORM (CREATE DATABASE, CREATE USER, etc.).
+ *
+ * Note: This service is ORM-agnostic and uses raw PostgreSQL client for database operations.
+ */
+
 // Generate a random password
 const generatePassword = (length: number = 16): string => {
   if (

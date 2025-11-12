@@ -1,34 +1,44 @@
 import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
-import OrganizationUser, { OrganizationUserRole } from "../entities/distributed/organization_user";
-import AdminProfile from "../entities/distributed/admin_profile";
-import PatientProfile from "../entities/distributed/patient_profile";
-import DoctorProfile from "../entities/distributed/doctor_profile";
+import { eq } from "drizzle-orm";
+import {
+  organizationUserTable,
+  adminProfileTable,
+  patientProfileTable,
+  doctorProfileTable,
+} from "../db/schema/distributed/schema";
+import {
+  OrganizationUser,
+  AdminProfile,
+  PatientProfile,
+  DoctorProfile,
+} from "../db/schema/distributed/types";
+import { OrganizationUserRole } from "../db/schema/distributed/enums";
+import { getOrgDb } from "../db/drizzle-organization-db";
 import {
   getApp,
-  getOrm,
   createTestUser,
   trackOrganization,
   getSentEmails,
+  getDb,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
-import { getOrgEm } from "../db/organization-db";
 import { OrgJWTPayload } from "../config/jwt.config";
 
 describe("Patient API", () => {
   let app: ReturnType<typeof getApp>;
-  let orm: ReturnType<typeof getOrm>;
+  let db: any;
   let organizationName: string;
   let adminToken: string;
   let centralAuthToken: string;
 
   beforeEach(async () => {
     app = getApp();
-    orm = getOrm();
+    db = getDb();
 
     // Create a central user for creating organizations
-    const centralUser = await createTestUser(orm, {
+    const centralUser = await createTestUser(db, {
       email: "central@test.com",
       name: "Central Admin",
       password: "password123",
@@ -38,7 +48,7 @@ describe("Patient API", () => {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
-      type: 'central'
+      type: "central",
     });
 
     // Create organization via API (this creates the database too)
@@ -52,27 +62,33 @@ describe("Patient API", () => {
     trackOrganization(organizationName);
 
     // Create an admin user in the organization database
-    const orgEm = await getOrgEm(organizationName);
+    const orgDb = await getOrgDb(organizationName);
     const hashedPassword = await jwtService.hashPassword("adminpass123");
 
-    const adminProfile = orgEm.create(AdminProfile, {});
-    const adminUser = orgEm.create(OrganizationUser, {
-      email: "admin@hospital.com",
-      password: hashedPassword,
-      firstName: "Admin",
-      lastName: "User",
-      adminProfile,
+    const result = await orgDb.transaction(async (tx) => {
+      const [adminProfile] = await tx.insert(adminProfileTable).values({}).returning();
+      const [adminUser] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email: "admin@hospital.com",
+          password: hashedPassword,
+          firstName: "Admin",
+          lastName: "User",
+          adminProfileId: adminProfile!.id,
+        })
+        .returning();
+      return { adminProfile, adminUser };
     });
 
-    await orgEm.persistAndFlush([adminProfile, adminUser]);
+    const { adminUser } = result;
 
     // Generate admin token with orgName field
     const adminPayload: OrgJWTPayload = {
-      userId: adminUser.id,
-      email: adminUser.email,
-      name: `${adminUser.firstName} ${adminUser.lastName}`,
+      userId: adminUser!.id,
+      email: adminUser!.email,
+      name: `${adminUser!.firstName} ${adminUser!.lastName}`,
       orgName: organizationName,
-      type: 'org'
+      type: "org",
     };
     adminToken = jwtService.generateAccessToken(adminPayload);
   });
@@ -110,7 +126,10 @@ describe("Patient API", () => {
       expect(response.body).to.have.property("user");
       expect(response.body.user).to.have.property("id");
       expect(response.body.user).to.have.property("email", patientData.email);
-      expect(response.body.user).to.have.property("firstName", patientData.firstName);
+      expect(response.body.user).to.have.property(
+        "firstName",
+        patientData.firstName,
+      );
       expect(response.body.user).to.have.property("lastName", patientData.lastName);
       expect(response.body.user).to.have.property("role", "patient");
       expect(response.body.user).to.not.have.property(
@@ -119,19 +138,22 @@ describe("Patient API", () => {
       );
 
       // Verify in database
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.firstName).to.equal(patientData.firstName);
       expect(savedPatient!.lastName).to.equal(patientData.lastName);
       expect(savedPatient!.patientProfile).to.not.be.undefined;
       expect(savedPatient!.patientProfile!.dateOfBirth).to.be.instanceOf(Date);
-      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(patientData.phoneNumber);
+      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(
+        patientData.phoneNumber,
+      );
       expect(savedPatient!.patientProfile!.address).to.equal(patientData.address);
       expect(savedPatient!.patientProfile!.emergencyContactName).to.equal(
         patientData.emergencyContactName,
@@ -195,12 +217,13 @@ describe("Patient API", () => {
       expect(response.body.user).to.have.property("email", patientData.email);
 
       // Verify optional fields are null/undefined in database
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.patientProfile).to.not.be.undefined;
@@ -234,12 +257,13 @@ describe("Patient API", () => {
         .expect(201);
 
       // Verify the ipAddress field is set
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.patientProfile).to.not.be.undefined;
@@ -339,15 +363,15 @@ describe("Patient API", () => {
       expect(response2.body.user).to.have.property("email", patientData.email);
 
       // Verify they exist in separate databases with different IDs
-      const org1Em = await getOrgEm(organizationName);
-      const org1Patient = await org1Em.findOne(OrganizationUser, {
-        email: patientData.email,
+      const org1Db = await getOrgDb(organizationName);
+      const org1Patient = await org1Db.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
       });
       expect(org1Patient).to.not.be.null;
 
-      const org2Em = await getOrgEm(org2Name);
-      const org2Patient = await org2Em.findOne(OrganizationUser, {
-        email: patientData.email,
+      const org2Db = await getOrgDb(org2Name);
+      const org2Patient = await org2Db.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
       });
       expect(org2Patient).to.not.be.null;
 
@@ -569,7 +593,10 @@ describe("Patient API", () => {
       expect(meResponse.body).to.have.property("firstName", patientData.firstName);
       expect(meResponse.body).to.have.property("lastName", patientData.lastName);
       expect(meResponse.body).to.have.property("dateOfBirth");
-      expect(meResponse.body).to.have.property("phoneNumber", patientData.phoneNumber);
+      expect(meResponse.body).to.have.property(
+        "phoneNumber",
+        patientData.phoneNumber,
+      );
       expect(meResponse.body).to.have.property("address", patientData.address);
       expect(meResponse.body).to.have.property("bloodType", patientData.bloodType);
     });
@@ -588,30 +615,39 @@ describe("Patient API", () => {
 
     it("should reject non-patient users", async () => {
       // Create a doctor user
-      const orgEm = await getOrgEm(organizationName);
+      const orgDb = await getOrgDb(organizationName);
       const hashedPassword = await jwtService.hashPassword("doctorpass123");
 
-      const doctorProfile = orgEm.create(DoctorProfile, {
-        specialization: "Cardiology",
-        licenseNumber: "MD123456",
-      });
-      const doctorUser = orgEm.create(OrganizationUser, {
-        email: "doctor@hospital.com",
-        password: hashedPassword,
-        firstName: "Doctor",
-        lastName: "User",
-        doctorProfile,
+      const result = await orgDb.transaction(async (tx) => {
+        const [doctorProfile] = await tx
+          .insert(doctorProfileTable)
+          .values({
+            specialization: "Cardiology",
+            licenseNumber: "MD123456",
+          })
+          .returning();
+        const [doctorUser] = await tx
+          .insert(organizationUserTable)
+          .values({
+            email: "doctor@hospital.com",
+            password: hashedPassword,
+            firstName: "Doctor",
+            lastName: "User",
+            doctorProfileId: doctorProfile!.id,
+          })
+          .returning();
+        return { doctorUser };
       });
 
-      await orgEm.persistAndFlush([doctorProfile, doctorUser]);
+      const { doctorUser } = result;
 
       // Generate token for doctor user
       const doctorPayload: OrgJWTPayload = {
-        userId: doctorUser.id,
-        email: doctorUser.email,
-        name: `${doctorUser.firstName} ${doctorUser.lastName}`,
+        userId: doctorUser!.id,
+        email: doctorUser!.email,
+        name: `${doctorUser!.firstName} ${doctorUser!.lastName}`,
         orgName: organizationName,
-        type: 'org'
+        type: "org",
       };
       const doctorToken = jwtService.generateAccessToken(doctorPayload);
 
@@ -666,7 +702,7 @@ describe("Patient API", () => {
         email: registerResponse.body.user.email,
         name: `${registerResponse.body.user.firstName} ${registerResponse.body.user.lastName}`,
         orgName: "Different Organization",
-        type: 'org'
+        type: "org",
       };
       const mismatchedToken = jwtService.generateAccessToken(mismatchedPayload);
 
@@ -718,24 +754,33 @@ describe("Patient API", () => {
         .send(updateData)
         .expect(200);
 
-      expect(updateResponse.body).to.have.property("firstName", updateData.firstName);
+      expect(updateResponse.body).to.have.property(
+        "firstName",
+        updateData.firstName,
+      );
       expect(updateResponse.body).to.have.property("lastName", updateData.lastName);
-      expect(updateResponse.body).to.have.property("phoneNumber", updateData.phoneNumber);
+      expect(updateResponse.body).to.have.property(
+        "phoneNumber",
+        updateData.phoneNumber,
+      );
       expect(updateResponse.body).to.have.property("address", updateData.address);
       expect(updateResponse.body).to.have.property("bloodType", updateData.bloodType);
 
       // Verify all fields updated in database
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.firstName).to.equal(updateData.firstName);
       expect(savedPatient!.lastName).to.equal(updateData.lastName);
-      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(updateData.phoneNumber);
+      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(
+        updateData.phoneNumber,
+      );
       expect(savedPatient!.patientProfile!.address).to.equal(updateData.address);
       expect(savedPatient!.patientProfile!.emergencyContactName).to.equal(
         updateData.emergencyContactName,
@@ -782,17 +827,20 @@ describe("Patient API", () => {
         .expect(200);
 
       // Verify only those fields changed, others remain the same
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.firstName).to.equal(updateData.firstName);
       expect(savedPatient!.lastName).to.equal(patientData.lastName); // Unchanged
-      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(updateData.phoneNumber);
+      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(
+        updateData.phoneNumber,
+      );
       expect(savedPatient!.patientProfile!.address).to.equal(patientData.address); // Unchanged
     });
 
@@ -822,12 +870,13 @@ describe("Patient API", () => {
         .expect(200);
 
       // Verify ipAddress is set
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.patientProfile).to.not.be.undefined;
@@ -852,30 +901,39 @@ describe("Patient API", () => {
 
     it("should reject non-patient users", async () => {
       // Create a doctor user
-      const orgEm = await getOrgEm(organizationName);
+      const orgDb = await getOrgDb(organizationName);
       const hashedPassword = await jwtService.hashPassword("doctorpass123");
 
-      const doctorProfile = orgEm.create(DoctorProfile, {
-        specialization: "Cardiology",
-        licenseNumber: "MD123456",
-      });
-      const doctorUser = orgEm.create(OrganizationUser, {
-        email: "doctor@hospital.com",
-        password: hashedPassword,
-        firstName: "Doctor",
-        lastName: "User",
-        doctorProfile,
+      const result = await orgDb.transaction(async (tx) => {
+        const [doctorProfile] = await tx
+          .insert(doctorProfileTable)
+          .values({
+            specialization: "Cardiology",
+            licenseNumber: "MD123456",
+          })
+          .returning();
+        const [doctorUser] = await tx
+          .insert(organizationUserTable)
+          .values({
+            email: "doctor@hospital.com",
+            password: hashedPassword,
+            firstName: "Doctor",
+            lastName: "User",
+            doctorProfileId: doctorProfile!.id,
+          })
+          .returning();
+        return { doctorUser };
       });
 
-      await orgEm.persistAndFlush([doctorProfile, doctorUser]);
+      const { doctorUser } = result;
 
       // Generate token for doctor user
       const doctorPayload: OrgJWTPayload = {
-        userId: doctorUser.id,
-        email: doctorUser.email,
-        name: `${doctorUser.firstName} ${doctorUser.lastName}`,
+        userId: doctorUser!.id,
+        email: doctorUser!.email,
+        name: `${doctorUser!.firstName} ${doctorUser!.lastName}`,
         orgName: organizationName,
-        type: 'org'
+        type: "org",
       };
       const doctorToken = jwtService.generateAccessToken(doctorPayload);
 
@@ -986,11 +1044,10 @@ describe("Patient API", () => {
         .expect(200);
 
       // Verify email hasn't changed
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { id: registerResponse.body.user.id },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.id, registerResponse.body.user.id),
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.email).to.equal(originalEmail);
@@ -1016,11 +1073,10 @@ describe("Patient API", () => {
       const patientToken = registerResponse.body.accessToken;
 
       // Get original password hash
-      const orgEm = await getOrgEm(organizationName);
-      const originalPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const originalPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+      });
       const originalPasswordHash = originalPatient!.password;
 
       // Try to update password
@@ -1031,9 +1087,11 @@ describe("Patient API", () => {
         .expect(200);
 
       // Verify password hasn't changed
-      await orgEm.refresh(originalPatient!);
-      expect(originalPatient!.password).to.equal(originalPasswordHash);
-      expect(originalPatient!.firstName).to.equal("Updated"); // Other updates should work
+      const updatedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+      });
+      expect(updatedPatient!.password).to.equal(originalPasswordHash);
+      expect(updatedPatient!.firstName).to.equal("Updated"); // Other updates should work
     });
   });
 
@@ -1062,19 +1120,22 @@ describe("Patient API", () => {
       const patientId = response.body.user.id;
 
       // Fetch from database and verify all fields
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { id: patientId },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.id, patientId),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.email).to.equal(patientData.email);
       expect(savedPatient!.firstName).to.equal(patientData.firstName);
       expect(savedPatient!.lastName).to.equal(patientData.lastName);
       expect(savedPatient!.patientProfile).to.not.be.undefined;
-      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(patientData.phoneNumber);
+      expect(savedPatient!.patientProfile!.phoneNumber).to.equal(
+        patientData.phoneNumber,
+      );
       expect(savedPatient!.patientProfile!.address).to.equal(patientData.address);
       expect(savedPatient!.patientProfile!.emergencyContactName).to.equal(
         patientData.emergencyContactName,
@@ -1105,12 +1166,15 @@ describe("Patient API", () => {
         .expect(201);
 
       // Verify in database that user has only patientProfile set
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile", "adminProfile", "doctorProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+          adminProfile: true,
+          doctorProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.patientProfile).to.not.be.null;
@@ -1134,12 +1198,13 @@ describe("Patient API", () => {
         .expect(201);
 
       // Verify dateOfBirth is a Date object
-      const orgEm = await getOrgEm(organizationName);
-      const savedPatient = await orgEm.findOne(
-        OrganizationUser,
-        { email: patientData.email },
-        { populate: ["patientProfile"] },
-      );
+      const orgDb = await getOrgDb(organizationName);
+      const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+        where: (users, { eq }) => eq(users.email, patientData.email),
+        with: {
+          patientProfile: true,
+        },
+      });
 
       expect(savedPatient).to.not.be.null;
       expect(savedPatient!.patientProfile).to.not.be.undefined;
@@ -1166,12 +1231,13 @@ describe("Patient API", () => {
           .expect(201);
 
         // Verify blood type is stored correctly
-        const orgEm = await getOrgEm(organizationName);
-        const savedPatient = await orgEm.findOne(
-          OrganizationUser,
-          { email: patientData.email },
-          { populate: ["patientProfile"] },
-        );
+        const orgDb = await getOrgDb(organizationName);
+        const savedPatient = await orgDb.query.organizationUserTable.findFirst({
+          where: (users, { eq }) => eq(users.email, patientData.email),
+          with: {
+            patientProfile: true,
+          },
+        });
 
         expect(savedPatient).to.not.be.null;
         expect(savedPatient!.patientProfile!.bloodType).to.equal(bloodTypes[i]);

@@ -1,16 +1,23 @@
 import { Request, Response, NextFunction } from "express";
-import { RequestContext, EntityManager } from "@mikro-orm/core";
-import { getOrgOrm } from "../db/organization-db";
-import { getOrm } from "../db/centralized-db";
-import Organization from "../entities/central/organization";
 import logger from "../utils/logger";
+import { getDrizzleDb } from "../db/drizzle-centralized-db";
+import { getOrgDb } from "../db/drizzle-organization-db";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm";
+import { organizationTable } from "../db/schema/central/schema";
+import * as centralSchema from "../db/schema/central/schema";
+import * as distributedSchema from "../db/schema/distributed/schema";
+import * as distributedRelations from "../db/schema/distributed/relations";
+import type { OrganizationUserWithProfile } from "./auth";
 
-// This adds organization and EntityManager as fields to the request object
+// This adds organization and Drizzle database instances as fields to the request object
 declare global {
   namespace Express {
     interface Request {
       organization?: string;
-      em?: EntityManager;
+      organizationUser?: OrganizationUserWithProfile;
+      db?: NodePgDatabase<typeof distributedSchema & typeof distributedRelations>;
+      centralDb?: NodePgDatabase<typeof centralSchema>;
     }
   }
 }
@@ -35,11 +42,14 @@ async function organizationExists(orgName: string): Promise<boolean> {
   }
 
   try {
-    const centralOrm = await getOrm();
-    const em = centralOrm.em.fork();
-    const org = await em.findOne(Organization, { name: orgName });
+    const db = await getDrizzleDb();
+    const result = await db
+      .select()
+      .from(organizationTable)
+      .where(eq(organizationTable.name, orgName))
+      .limit(1);
 
-    const exists = org !== null;
+    const exists = result.length > 0;
 
     // Implement LRU eviction: if cache is full, remove oldest entry
     if (orgExistenceCache.size >= MAX_CACHE_SIZE) {
@@ -111,8 +121,6 @@ export function orgContext(
           logger.warn({ orgName, path: req.path }, 'Request for non-existent organization');
 
           // Add artificial delay to mitigate timing-based org enumeration attacks
-          // This narrows the timing gap between 404 (org not found) and 401 (org exists but auth failed)
-          // Delay range: 50-150ms to prevent precise timing measurements
           const delay = 50 + Math.random() * 100;
           await new Promise(resolve => setTimeout(resolve, delay));
 
@@ -122,15 +130,16 @@ export function orgContext(
           return;
         }
 
-        // Organization exists, create ORM connection
-        const orgOrm = await getOrgOrm(orgName);
+        // Organization exists, create Drizzle connection
+        const orgDb = await getOrgDb(orgName);
         req.organization = orgName;
 
-        // Create RequestContext and call next() within it to ensure context propagates
-        RequestContext.create(orgOrm.em, () => {
-          req.em = orgOrm.em;
-          next();
-        });
+        // Attach plain Drizzle DB instances (not transactions)
+        // Controllers will use db.transaction() for operations requiring atomicity
+        req.db = orgDb;
+        req.centralDb = await getDrizzleDb();
+
+        next();
       } catch (error) {
         logger.error({ error, orgName }, 'Failed to create org database connection');
         res.status(500).json({
@@ -139,16 +148,18 @@ export function orgContext(
       }
     })();
   } else {
-    // Use central ORM for non-organization requests
-    getOrm().then(centralizedOrm => {
-      RequestContext.create(centralizedOrm.em, () => {
-        req.em = centralizedOrm.em;
+    // Use central database for non-organization requests
+    getDrizzleDb()
+      .then(async (centralDb) => {
+        // Attach plain DB instance (not transaction)
+        // Controllers will use db.transaction() for operations requiring atomicity
+        req.centralDb = centralDb;
         next();
+      })
+      .catch(error => {
+        logger.error({ error, path: req.path }, 'Failed to get central database');
+        res.status(500).json({ error: "Internal server error" });
       });
-    }).catch(error => {
-      logger.error({ error, path: req.path }, 'Failed to get central ORM');
-      res.status(500).json({ error: "Internal server error" });
-    });
   }
 }
 

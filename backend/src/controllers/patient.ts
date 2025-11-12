@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import BaseController from './base';
-import { RequestContext } from '@mikro-orm/core';
 import { getClientIpAddress } from '../utils/ip-address';
 import { PatientRegisterDto, UpdatePatientProfileDto } from '../validators/patient';
 import patientService from '../services/patient.service';
@@ -10,19 +9,15 @@ class PatientController extends BaseController {
     try {
       const patientData = req.body as PatientRegisterDto;
 
-      // Get the organization-specific EntityManager
-      const em = RequestContext.getEntityManager();
-      if (!em) {
-        res.status(500).json({ error: 'Database context not available' });
-        return;
-      }
+      // Get the organization-specific Drizzle database instance
+      const db = this.getDb(req);
 
       // Extract IP address
       const ipAddress = getClientIpAddress(req);
 
       try {
         const result = await patientService.registerPatient(
-          em,
+          db,
           patientData,
           ipAddress,
           req.organization!
@@ -71,12 +66,8 @@ class PatientController extends BaseController {
     try {
       const updateData = req.body as UpdatePatientProfileDto;
 
-      // Get EntityManager
-      const em = RequestContext.getEntityManager();
-      if (!em) {
-        res.status(500).json({ error: 'Database context not available' });
-        return;
-      }
+      // Get the organization-specific Drizzle database instance
+      const db = this.getDb(req);
 
       // Use the already-loaded user from requirePatient middleware
       const user = req.organizationUser;
@@ -91,7 +82,7 @@ class PatientController extends BaseController {
 
       try {
         const updatedProfile = await patientService.updatePatientProfile(
-          em,
+          db,
           user,
           updateData,
           ipAddress
@@ -112,12 +103,8 @@ class PatientController extends BaseController {
 
   async deleteAccount(req: Request, res: Response): Promise<void> {
     try {
-      // Get EntityManager
-      const em = RequestContext.getEntityManager();
-      if (!em) {
-        res.status(500).json({ error: 'Database context not available' });
-        return;
-      }
+      // Get the organization-specific Drizzle database instance
+      const db = this.getDb(req);
 
       // Use the already-loaded user from requirePatient middleware
       const user = req.organizationUser;
@@ -129,7 +116,7 @@ class PatientController extends BaseController {
 
       try {
         await patientService.deletePatientAccount(
-          em,
+          db,
           user,
           req.organization!
         );

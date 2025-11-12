@@ -1,17 +1,21 @@
 import { expect } from 'chai';
 import request from 'supertest';
 import { describe, it, before, after, beforeEach } from 'mocha';
-import { getApp, getOrm, clearDatabase } from './fixtures';
-import User from '../entities/central/user';
-import Organization from '../entities/central/organization';
+import { getApp, clearDatabase, getDb } from './fixtures';
+import { eq } from 'drizzle-orm';
+import { userTable, organizationTable } from '../db/schema/central/schema';
+import {
+  User as DrizzleUser,
+  Organization as DrizzleOrganization,
+} from '../db/schema/central/types';
 import jwtService from '../services/jwt.service';
 import cryptoService from '../utils/crypto';
 
 describe('Security - JWT Token Type Discrimination', () => {
   let app: any;
-  let orm: any;
-  let centralUser: User;
-  let organization: Organization;
+  let db: any;
+  let centralUser: DrizzleUser;
+  let organization: DrizzleOrganization;
   let centralToken: string;
   let orgToken: string;
 
@@ -20,38 +24,41 @@ describe('Security - JWT Token Type Discrimination', () => {
     process.env.NODE_ENV = 'test';
 
     app = getApp();
-    orm = getOrm();
-
-    // Create test data
-    const em = orm.em.fork();
+    db = getDb();
 
     // Use unique email to avoid conflicts
     const uniqueEmail = `central-jwt-${Date.now()}@test.com`;
 
     // Create central user
-    centralUser = em.create(User, {
-      email: uniqueEmail,
-      name: 'Central User',
-      password: await jwtService.hashPassword('SecurePass123!'),
-      isVerified: true
-    });
-    await em.persistAndFlush(centralUser);
+    const [user] = await db
+      .insert(userTable)
+      .values({
+        email: uniqueEmail,
+        name: 'Central User',
+        password: await jwtService.hashPassword('SecurePass123!'),
+        isVerified: true,
+      })
+      .returning();
+    centralUser = user;
 
     // Use unique org name to avoid conflicts
     const uniqueOrgName = `TestOrg-jwt-${Date.now()}`;
 
     // Create organization
-    organization = em.create(Organization, {
-      name: uniqueOrgName
-    });
-    await em.persistAndFlush(organization);
+    const [org] = await db
+      .insert(organizationTable)
+      .values({
+        name: uniqueOrgName,
+      })
+      .returning();
+    organization = org;
 
     // Generate tokens
     const centralPayload = {
       userId: centralUser.id,
       email: centralUser.email,
       name: centralUser.name,
-      type: 'central' as const
+      type: 'central' as const,
     };
     centralToken = jwtService.generateAccessToken(centralPayload);
 
@@ -60,7 +67,7 @@ describe('Security - JWT Token Type Discrimination', () => {
       email: 'org@test.com',
       name: 'Org User',
       type: 'org' as const,
-      orgName: uniqueOrgName
+      orgName: uniqueOrgName,
     };
     orgToken = jwtService.generateAccessToken(orgPayload);
   });
@@ -88,7 +95,7 @@ describe('Security - JWT Token Type Discrimination', () => {
       const invalidPayload = {
         userId: 1,
         email: 'test@test.com',
-        name: 'Test User'
+        name: 'Test User',
       } as any;
       const invalidToken = jwtService.generateAccessToken(invalidPayload);
 
@@ -117,7 +124,7 @@ describe('Security - JWT Token Type Discrimination', () => {
           name: 'Test',
           type: 'central' as const,
           iss: 'invalid-issuer',
-          aud: 'invalid-audience'
+          aud: 'invalid-audience',
         };
         // This should fail in verification
         const token = jwtService.generateAccessToken(payload);
@@ -137,7 +144,7 @@ describe('Security - JWT Token Type Discrimination', () => {
         email: 'org@test.com',
         name: 'Org User',
         type: 'org' as const,
-        orgName: 'WrongOrg'
+        orgName: 'WrongOrg',
       };
       const wrongOrgToken = jwtService.generateAccessToken(wrongOrgPayload);
 
@@ -154,7 +161,7 @@ describe('Security - JWT Token Type Discrimination', () => {
         userId: 1,
         email: 'org@test.com',
         name: 'Org User',
-        type: 'org' as const
+        type: 'org' as const,
       } as any;
 
       expect(() => {

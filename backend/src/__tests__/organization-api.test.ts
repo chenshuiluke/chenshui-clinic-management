@@ -2,21 +2,27 @@ import { describe, it, beforeEach } from "mocha";
 import { expect } from "chai";
 import request from "supertest";
 import { Client } from "pg";
-import Organization from "../entities/central/organization";
+import { eq } from "drizzle-orm";
+import { organizationTable } from "../db/schema/central/schema";
+import { Organization as DrizzleOrganization } from "../db/schema/central/types";
 import {
   getApp,
-  getOrm,
   createTestOrganization,
   createTestUser,
   trackOrganization,
+  getDb,
 } from "./fixtures";
 import jwtService from "../services/jwt.service";
-import { getOrgDbName, getOrgDbUser, getOrgSecretName } from "../utils/organization";
+import {
+  getOrgDbName,
+  getOrgDbUser,
+  getOrgSecretName,
+} from "../utils/organization";
 import { secretsManagerService } from "../services/secrets-manager.service";
 
 describe("Organization API", () => {
   let app: ReturnType<typeof getApp>;
-  let orm: ReturnType<typeof getOrm>;
+  let db: any;
   let authToken: string;
 
   // Test-local helper functions for unique names and expectations
@@ -34,13 +40,13 @@ describe("Organization API", () => {
 
   beforeEach(async () => {
     app = getApp();
-    orm = getOrm();
+    db = getDb();
 
     // Set required environment variables for tests
     process.env.NODE_ENV = "test";
 
     // Create a test user and generate auth token for protected routes
-    const user = await createTestUser(orm, {
+    const user = await createTestUser(db, {
       email: "admin@test.com",
       name: "Test Admin",
       password: "password123",
@@ -50,7 +56,7 @@ describe("Organization API", () => {
       userId: user.id,
       email: user.email,
       name: user.name,
-      type: 'central'
+      type: "central",
     });
   });
 
@@ -75,9 +81,9 @@ describe("Organization API", () => {
     });
 
     it("should return all organizations with correct structure", async () => {
-      await createTestOrganization(orm, { name: "Clinic A" });
-      await createTestOrganization(orm, { name: "Clinic B" });
-      await createTestOrganization(orm, { name: "Clinic C" });
+      await createTestOrganization(db, { name: "Clinic A" });
+      await createTestOrganization(db, { name: "Clinic B" });
+      await createTestOrganization(db, { name: "Clinic C" });
 
       const response = await request(app)
         .get("/organizations")
@@ -95,8 +101,8 @@ describe("Organization API", () => {
     });
 
     it("should return organizations in consistent order", async () => {
-      await createTestOrganization(orm, { name: "Alpha Clinic" });
-      await createTestOrganization(orm, { name: "Beta Clinic" });
+      await createTestOrganization(db, { name: "Alpha Clinic" });
+      await createTestOrganization(db, { name: "Beta Clinic" });
 
       const response1 = await request(app)
         .get("/organizations")
@@ -193,7 +199,9 @@ describe("Organization API", () => {
 
         trackOrganization(testCase.orgName);
 
-        expect(response.body.database.dbName).to.equal(expectedDb(testCase.orgName));
+        expect(response.body.database.dbName).to.equal(
+          expectedDb(testCase.orgName),
+        );
         expect(response.body.database.secretName).to.equal(
           expectedSecret(testCase.orgName),
         );
@@ -218,7 +226,7 @@ describe("Organization API", () => {
     it("should handle duplicate organization names", async () => {
       const orgName = `Duplicate Medical Center ${Date.now()}`;
 
-      await createTestOrganization(orm, { name: orgName });
+      await createTestOrganization(db, { name: orgName });
 
       const response = await request(app)
         .post("/organizations")
@@ -236,13 +244,13 @@ describe("Organization API", () => {
       const originalHost = process.env.DB_HOST;
       const originalUser = process.env.DB_USER;
       const originalPassword = process.env.DB_PASSWORD;
+      const orgName = `No DB Config Clinic ${Date.now()}`;
 
       try {
         delete process.env.DB_HOST;
         delete process.env.DB_USER;
         delete process.env.DB_PASSWORD;
 
-        const orgName = `No DB Config Clinic ${Date.now()}`;
         const response = await request(app)
           .post("/organizations")
           .set("Authorization", `Bearer ${authToken}`)
@@ -254,10 +262,11 @@ describe("Organization API", () => {
         expect(response.body.error).to.include("Failed to create organization");
 
         // Verify organization was NOT persisted
-        const em = orm.em.fork();
-        const savedOrg = await em.findOne(Organization, {
-          name: orgName,
-        });
+        const orgs = await db
+          .select()
+          .from(organizationTable)
+          .where(eq(organizationTable.name, orgName));
+        const savedOrg = orgs.length > 0 ? orgs[0] : null;
         expect(savedOrg).to.be.null;
       } finally {
         // Always restore env vars, even if test fails
@@ -266,12 +275,13 @@ describe("Organization API", () => {
         process.env.DB_PASSWORD = originalPassword;
 
         // Note: This test expects failure, but track defensively
-        const em = orm.em.fork();
-        const org = await em.findOne(Organization, {
-          name: `No DB Config Clinic ${Date.now()}`,
-        });
+        const orgs = await db
+          .select()
+          .from(organizationTable)
+          .where(eq(organizationTable.name, orgName));
+        const org = orgs.length > 0 ? orgs[0] : null;
         if (org) {
-          trackOrganization("No DB Config Clinic");
+          trackOrganization(orgName);
         }
       }
     });

@@ -1,26 +1,28 @@
 import { Request, Response } from "express";
 import BaseController from "./base";
-import OrganizationUser from "../entities/distributed/organization_user";
-import DoctorProfile from "../entities/distributed/doctor_profile";
 import jwtService from "../services/jwt.service";
-import { RequestContext } from "@mikro-orm/core";
 import { CreateDoctorDto } from "../validators/doctor";
+import { eq, isNotNull } from "drizzle-orm";
+import { doctorProfileTable, organizationUserTable } from "../db/schema/distributed/schema";
+import { DoctorProfile, NewDoctorProfile, NewOrganizationUser, OrganizationUser } from "../db/schema/distributed/types";
 
 class DoctorController extends BaseController {
   async getAllDoctors(req: Request, res: Response): Promise<void> {
     try {
-      // Get the organization-specific EntityManager
-      const em = RequestContext.getEntityManager();
-      if (!em) {
-        res.status(500).json({ error: "Database context not available" });
-        return;
-      }
+      const db = this.getDb(req);
 
       // Query OrganizationUser entities with doctorProfile populated
-      const doctors = await em.find(OrganizationUser, { doctorProfile: { $ne: null } }, { populate: ['doctorProfile'] });
+      const doctors = await db.query.organizationUserTable.findMany({
+        where: (users, { isNotNull }) => isNotNull(users.doctorProfileId),
+        with: {
+          doctorProfile: true,
+        },
+      });
 
       // Map to response shape
-      const mappedDoctors = doctors.map(user => ({
+      const mappedDoctors = doctors
+        .filter(user => user.doctorProfile)
+        .map(user => ({
           id: user.id,
           email: user.email,
           firstName: user.firstName,
@@ -42,15 +44,11 @@ class DoctorController extends BaseController {
     try {
       const { email, password, firstName, lastName, specialization, licenseNumber, phoneNumber } = req.body as CreateDoctorDto;
 
-      // Get the organization-specific EntityManager
-      const em = RequestContext.getEntityManager();
-      if (!em) {
-        res.status(500).json({ error: "Database context not available" });
-        return;
-      }
+      const db = this.getDb(req);
 
       // Check if a user with the provided email already exists
-      const existingUser = await em.findOne(OrganizationUser, { email });
+      const existingUsers = await db.select().from(organizationUserTable).where(eq(organizationUserTable.email, email)).limit(1);
+      const existingUser = existingUsers.length > 0 ? existingUsers[0] : null;
       if (existingUser) {
         res.status(409).json({
           error: "User with this email already exists in the organization",
@@ -60,31 +58,47 @@ class DoctorController extends BaseController {
 
       const hashedPassword = await jwtService.hashPassword(password);
 
-      const doctorProfile = em.create(DoctorProfile, {
-        specialization,
-        licenseNumber,
-        ...(phoneNumber && { phoneNumber }),
+      const result = await db.transaction(async (tx) => {
+        // Create DoctorProfile first
+        const doctorProfiles = await tx.insert(doctorProfileTable).values({
+          specialization,
+          licenseNumber,
+          phoneNumber: phoneNumber || null,
+        }).returning();
+
+        if (doctorProfiles.length === 0) {
+          throw new Error("Failed to create doctor profile.");
+        }
+        const doctorProfile = doctorProfiles[0];
+
+        // Create OrganizationUser with reference to doctorProfile
+        const organizationUsers = await tx.insert(organizationUserTable).values({
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          doctorProfileId: doctorProfile!.id,
+        }).returning();
+
+        if (organizationUsers.length === 0) {
+          throw new Error("Failed to create organization user.");
+        }
+        const organizationUser = organizationUsers[0];
+
+        return { doctorProfile, organizationUser };
       });
 
-      const organizationUser = em.create(OrganizationUser, {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        doctorProfile,
-      });
-
-      await em.persistAndFlush([doctorProfile, organizationUser]);
+      const { doctorProfile, organizationUser } = result;
 
       res.status(201).json({
-        id: organizationUser.id,
-        email: organizationUser.email,
-        firstName: organizationUser.firstName,
-        lastName: organizationUser.lastName,
+        id: organizationUser!.id,
+        email: organizationUser!.email,
+        firstName: organizationUser!.firstName,
+        lastName: organizationUser!.lastName,
         role: "doctor",
-        specialization,
-        licenseNumber,
-        ...(phoneNumber && { phoneNumber }),
+        specialization: doctorProfile!.specialization,
+        licenseNumber: doctorProfile!.licenseNumber,
+        ...(doctorProfile!.phoneNumber && { phoneNumber: doctorProfile!.phoneNumber }),
       });
     } catch (error: any) {
       console.error("Failed to create doctor user:", error);

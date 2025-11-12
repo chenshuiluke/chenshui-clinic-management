@@ -1,19 +1,20 @@
 import { expect } from "chai";
 import request from "supertest";
 import { describe, it, beforeEach } from "mocha";
-import { getApp, getOrm } from "./fixtures";
+import { getApp, getDb } from "./fixtures";
 import jwtService from "../services/jwt.service";
-import User from "../entities/central/user";
-import { is } from "zod/v4/locales";
+import { eq } from "drizzle-orm";
+import { userTable } from "../db/schema/central/schema";
+import { User as DrizzleUser } from "../db/schema/central/types";
 import cryptoService from "../utils/crypto";
 
 describe("Auth API", () => {
   let app: any;
-  let orm: any;
+  let db: any;
 
   beforeEach(async () => {
     app = getApp();
-    orm = getOrm();
+    db = getDb();
   });
 
   describe("POST /auth/register", () => {
@@ -55,8 +56,11 @@ describe("Auth API", () => {
         `Password should not be returned in response but got: ${JSON.stringify(response.body.user)}`,
       );
 
-      const em = orm.em.fork();
-      const user = await em.findOne(User, { email: userData.email });
+      const users = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.email, userData.email));
+      const user = users.length > 0 ? users[0] : null;
       expect(user).to.not.be.null;
       expect(
         await jwtService.comparePassword(userData.password, user!.password),
@@ -127,15 +131,13 @@ describe("Auth API", () => {
 
   describe("POST /auth/login", () => {
     beforeEach(async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
-      const user = em.create(User, {
+      await db.insert(userTable).values({
         email: "login@example.com",
         name: "Login User",
         password: hashedPassword,
         isVerified: true,
       });
-      await em.persistAndFlush(user);
     });
 
     it("should login with valid credentials", async () => {
@@ -212,15 +214,13 @@ describe("Auth API", () => {
     });
 
     it("should reject unverified user", async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
-      const unverifiedUser = em.create(User, {
+      await db.insert(userTable).values({
         email: "unverified@example.com",
         name: "Unverified User",
         password: hashedPassword,
         isVerified: false,
       });
-      await em.persistAndFlush(unverifiedUser);
 
       const response = await request(app)
         .post("/auth/login")
@@ -243,25 +243,35 @@ describe("Auth API", () => {
     let userId: number;
 
     beforeEach(async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
-      const user = em.create(User, {
-        email: "refresh@example.com",
-        name: "Refresh User",
-        password: hashedPassword,
-      });
-
-      await em.persistAndFlush(user);
+      const rows = await db
+        .insert(userTable)
+        .values({
+          email: "refresh@example.com",
+          name: "Refresh User",
+          password: hashedPassword,
+        })
+        .returning();
+      const user = rows[0];
+      if (!user) {
+        throw new Error("User insertion failed in beforeEach");
+      }
 
       const tokens = jwtService.generateTokenPair({
         userId: user.id,
         email: user.email,
         name: user.name,
-        type: 'central'
+        type: "central",
       });
 
-      user.refreshToken = await cryptoService.hashRefreshToken(tokens.refreshTokenPlain);
-      await em.flush();
+      await db
+        .update(userTable)
+        .set({
+          refreshToken: await cryptoService.hashRefreshToken(
+            tokens.refreshTokenPlain,
+          ),
+        })
+        .where(eq(userTable.id, user.id));
 
       userId = user.id;
       refreshToken = tokens.refreshToken;
@@ -306,7 +316,7 @@ describe("Auth API", () => {
         userId: nonExistentUserId,
         email: "refresh@example.com",
         name: "Refresh User",
-        type: 'central'
+        type: "central",
       });
 
       const response = await request(app)
@@ -326,20 +336,25 @@ describe("Auth API", () => {
     let accessToken: string;
 
     beforeEach(async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
-      const user = em.create(User, {
-        email: "me@example.com",
-        name: "Me User",
-        password: hashedPassword,
-      });
-      await em.persistAndFlush(user);
+      const rows = await db
+        .insert(userTable)
+        .values({
+          email: "me@example.com",
+          name: "Me User",
+          password: hashedPassword,
+        })
+        .returning();
+      const user = rows[0];
+      if (!user) {
+        throw new Error("User insertion failed in beforeEach");
+      }
 
       accessToken = jwtService.generateAccessToken({
         userId: user.id,
         email: user.email,
         name: user.name,
-        type: 'central'
+        type: "central",
       });
     });
 
@@ -391,22 +406,27 @@ describe("Auth API", () => {
     let userId: number;
 
     beforeEach(async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
-      const user = em.create(User, {
-        email: "logout@example.com",
-        name: "Logout User",
-        password: hashedPassword,
-        refreshToken: "some-refresh-token",
-      });
-      await em.persistAndFlush(user);
+      const rows = await db
+        .insert(userTable)
+        .values({
+          email: "logout@example.com",
+          name: "Logout User",
+          password: hashedPassword,
+          refreshToken: "some-refresh-token",
+        })
+        .returning();
+      const user = rows[0];
+      if (!user) {
+        throw new Error("User insertion failed in beforeEach");
+      }
 
       userId = user.id;
       accessToken = jwtService.generateAccessToken({
         userId: user.id,
         email: user.email,
         name: user.name,
-        type: 'central'
+        type: "central",
       });
     });
 
@@ -422,8 +442,11 @@ describe("Auth API", () => {
         `Expected logout success message but got: ${JSON.stringify(response.body)}`,
       );
 
-      const em = orm.em.fork();
-      const user = await em.findOne(User, { id: userId });
+      const users = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.id, userId));
+      const user = users[0];
       expect(user!.refreshToken).to.be.null;
     });
 
@@ -443,33 +466,46 @@ describe("Auth API", () => {
     let unverifiedUserId: number;
 
     beforeEach(async () => {
-      const em = orm.em.fork();
       const hashedPassword = await jwtService.hashPassword("password123");
 
-      // Create a verifier user (the one who will verify others)
-      const verifierUser = em.create(User, {
-        email: "verifier@example.com",
-        name: "Verifier User",
-        password: hashedPassword,
-        isVerified: true,
+      const result = await db.transaction(async (tx: typeof db) => {
+        const verifierUserRows = await tx
+          .insert(userTable)
+          .values({
+            email: "verifier@example.com",
+            name: "Verifier User",
+            password: hashedPassword,
+            isVerified: true,
+          })
+          .returning();
+        const verifierUser = verifierUserRows[0];
+        if (!verifierUser) {
+          throw new Error("Verifier user insertion failed in beforeEach");
+        }
+        const unverifiedUserRows = await tx
+          .insert(userTable)
+          .values({
+            email: "toverify@example.com",
+            name: "To Verify User",
+            password: hashedPassword,
+            isVerified: false,
+          })
+          .returning();
+        const unverifiedUser = unverifiedUserRows[0];
+        if (!unverifiedUser) {
+          throw new Error("Unverified user insertion failed in beforeEach");
+        }
+        return { verifierUser, unverifiedUser };
       });
 
-      // Create an unverified user
-      const unverifiedUser = em.create(User, {
-        email: "toverify@example.com",
-        name: "To Verify User",
-        password: hashedPassword,
-        isVerified: false,
-      });
-
-      await em.persistAndFlush([verifierUser, unverifiedUser]);
+      const { verifierUser, unverifiedUser } = result;
 
       unverifiedUserId = unverifiedUser.id;
       verifierAccessToken = jwtService.generateAccessToken({
         userId: verifierUser.id,
         email: verifierUser.email,
         name: verifierUser.name,
-        type: 'central'
+        type: "central",
       });
     });
 
@@ -487,8 +523,11 @@ describe("Auth API", () => {
       );
 
       // Verify the user is now verified in the database
-      const em = orm.em.fork();
-      const user = await em.findOne(User, { id: unverifiedUserId });
+      const users = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.id, unverifiedUserId));
+      const user = users[0];
       expect(user!.isVerified).to.be.true;
     });
 
@@ -583,19 +622,24 @@ describe("Auth API", () => {
     });
 
     it("should allow access with valid token", async () => {
-      const em = orm.em.fork();
-      const user = em.create(User, {
-        email: "protected@example.com",
-        name: "Protected User",
-        password: await jwtService.hashPassword("password123"),
-      });
-      await em.persistAndFlush(user);
+      const rows = await db
+        .insert(userTable)
+        .values({
+          email: "protected@example.com",
+          name: "Protected User",
+          password: await jwtService.hashPassword("password123"),
+        })
+        .returning();
+      const user = rows[0];
+      if (!user) {
+        throw new Error("User insertion failed in test");
+      }
 
       const accessToken = jwtService.generateAccessToken({
         userId: user.id,
         email: user.email,
         name: user.name,
-        type: 'central'
+        type: "central",
       });
 
       const response = await request(app)

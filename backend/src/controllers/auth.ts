@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
-import { RequestContext } from "@mikro-orm/core";
-import User from "../entities/central/user";
+import { eq } from "drizzle-orm";
+import { userTable } from "../db/schema/central/schema";
+import { User, NewUser } from "../db/schema/central/types";
 import jwtService from "../services/jwt.service";
 import { CentralJWTPayload } from "../config/jwt.config";
 import cryptoService from "../utils/crypto";
@@ -11,15 +12,17 @@ import {
   RefreshTokenDto,
   VerifyUserDto,
 } from "../validators/auth";
+import BaseController from "./base";
 
-export class AuthController {
+export class AuthController extends BaseController {
   async login(req: Request, res: Response): Promise<void> {
     try {
       const { email, password }: LoginDto = req.body;
-      const em = RequestContext.getEntityManager()!;
+      const db = this.getCentralDb(req);
       const ip = req.ip || 'unknown';
 
-      const user = await em.findOne(User, { email });
+      const users = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1);
+      const user = users.length > 0 ? users[0] : null;
 
       if (!user) {
         securityLogger.loginFailed(email, 'User not found', ip);
@@ -51,8 +54,7 @@ export class AuthController {
         jwtService.generateTokenPair(payload);
 
       // Hash the plain refresh token for storage
-      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
-      await em.flush();
+      await db.update(userTable).set({ refreshToken: await cryptoService.hashRefreshToken(refreshTokenPlain), updatedAt: new Date() }).where(eq(userTable.id, user.id));
 
       securityLogger.loginAttempt(email, true, ip);
 
@@ -74,15 +76,17 @@ export class AuthController {
   async register(req: Request, res: Response): Promise<void> {
     try {
       const { email, name, password }: RegisterDto = req.body;
-      const em = RequestContext.getEntityManager()!;
+      const db = this.getCentralDb(req);
 
-      const existingUser = await em.findOne(User, { email });
+      const existingUsers = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1);
+      const existingUser = existingUsers.length > 0 ? existingUsers[0] : null;
       if (existingUser) {
         res.status(400).json({ error: "Email already registered" });
         return;
       }
 
-      const existingName = await em.findOne(User, { name });
+      const existingNames = await db.select().from(userTable).where(eq(userTable.name, name)).limit(1);
+      const existingName = existingNames.length > 0 ? existingNames[0] : null;
       if (existingName) {
         res.status(400).json({ error: "Name already registered" });
         return;
@@ -93,14 +97,19 @@ export class AuthController {
       // In test/cypress environments, auto-verify users for easier testing
       const isTestEnv = process.env.NODE_ENV === 'test' || process.env.CYPRESS_ENV === 'true';
 
-      const user = em.create(User, {
+      const userRows = await db.insert(userTable).values({
         email,
         name,
         password: hashedPassword,
         isVerified: isTestEnv,
-      });
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning();
 
-      await em.persistAndFlush(user);
+      if (userRows.length === 0) {
+        throw new Error('Failed to register user');
+      }
+      const user: User = userRows[0]!;
 
       res.status(201).json({
         message: "User registered successfully",
@@ -111,14 +120,7 @@ export class AuthController {
         },
       });
     } catch (error) {
-      // Return more specific error messages for known issues
-      if (error instanceof Error && error.message.includes('duplicate')) {
-        res.status(409).json({ error: "User already exists" });
-      } else if (error instanceof Error && error.message.includes('connection')) {
-        res.status(503).json({ error: "Database connection error" });
-      } else {
-        res.status(500).json({ error: "Registration failed" });
-      }
+      res.status(500).json({ error: "Registration failed" });
     }
   }
 
@@ -149,8 +151,9 @@ export class AuthController {
         return;
       }
 
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(User, { id: decoded.userId });
+      const db = this.getCentralDb(req);
+      const users = await db.select().from(userTable).where(eq(userTable.id, decoded.userId)).limit(1);
+      const user = users.length > 0 ? users[0] : null;
 
       if (!user || !user.refreshToken) {
         res.status(401).json({ error: "Invalid refresh token" });
@@ -183,8 +186,7 @@ export class AuthController {
       } = jwtService.generateTokenPair(payload);
 
       // Update stored refresh token hash
-      user.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
-      await em.flush();
+      await db.update(userTable).set({ refreshToken: await cryptoService.hashRefreshToken(refreshTokenPlain), updatedAt: new Date() }).where(eq(userTable.id, user.id));
 
       securityLogger.tokenRefreshed(user.id);
 
@@ -199,8 +201,9 @@ export class AuthController {
 
   async me(req: Request, res: Response): Promise<void> {
     try {
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(User, { id: req.user!.userId });
+      const db = this.getCentralDb(req);
+      const users = await db.select().from(userTable).where(eq(userTable.id, req.user!.userId)).limit(1);
+      const user = users.length > 0 ? users[0] : null;
 
       if (!user) {
         res.status(404).json({ error: "User not found" });
@@ -219,13 +222,8 @@ export class AuthController {
 
   async logout(req: Request, res: Response): Promise<void> {
     try {
-      const em = RequestContext.getEntityManager()!;
-      const user = await em.findOne(User, { id: req.user!.userId });
-
-      if (user) {
-        user.refreshToken = null;
-        await em.flush();
-      }
+      const db = this.getCentralDb(req);
+      await db.update(userTable).set({ refreshToken: null, updatedAt: new Date() }).where(eq(userTable.id, req.user!.userId));
 
       securityLogger.logout(req.user!.userId);
 
@@ -254,7 +252,7 @@ export class AuthController {
   async verify(req: Request, res: Response): Promise<void> {
     try {
       const { userId }: VerifyUserDto = req.body;
-      const em = RequestContext.getEntityManager()!;
+      const db = this.getCentralDb(req);
       const verifierId = req.user?.userId;
 
       if (!verifierId) {
@@ -273,7 +271,8 @@ export class AuthController {
         return;
       }
 
-      const user = await em.findOne(User, { id: userId });
+      const users = await db.select().from(userTable).where(eq(userTable.id, userId)).limit(1);
+      const user = users.length > 0 ? users[0] : null;
       if (!user) {
         res.status(404).json({ error: "User not found" });
         return;
@@ -284,8 +283,7 @@ export class AuthController {
         return;
       }
 
-      user.isVerified = true;
-      await em.flush();
+      await db.update(userTable).set({ isVerified: true, updatedAt: new Date() }).where(eq(userTable.id, userId));
 
       securityLogger.userVerified(userId, verifierId);
 

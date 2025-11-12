@@ -43,5 +43,14 @@
     // Decorator Support for MikroORM
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "drizzle.config.ts",
+    "drizzle-org.config.ts",
+    "drizzle-pull.config.ts",
+    "drizzle-pull-org.config.ts",
+    "scripts"
+  ]
 }

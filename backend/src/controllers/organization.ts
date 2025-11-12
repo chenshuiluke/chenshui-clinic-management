@@ -1,13 +1,15 @@
 import { Request, Response } from "express";
 import BaseController from "./base";
-import Organization from "../entities/central/organization";
+import { eq, sql, asc } from "drizzle-orm";
 import {
   createOrganizationDb,
   deleteOrganizationDb,
 } from "../services/organization";
-import { getOrgEm } from "../db/organization-db";
-import OrganizationUser from "../entities/distributed/organization_user";
-import AdminProfile from "../entities/distributed/admin_profile";
+import { organizationTable } from "../db/schema/central/schema";
+import { Organization, NewOrganization } from "../db/schema/central/types";
+import { organizationUserTable, adminProfileTable } from "../db/schema/distributed/schema";
+import { OrganizationUser, NewOrganizationUser, AdminProfile, NewAdminProfile } from "../db/schema/distributed/types";
+import { getOrgDb } from "../db/drizzle-organization-db";
 import jwtService from "../services/jwt.service";
 import cryptoService from "../utils/crypto";
 import { securityLogger } from "../utils/logger";
@@ -27,35 +29,38 @@ export default class OrganizationController extends BaseController {
     console.log(`Creating organization: ${orgName}`);
 
     try {
+      const db = this.getCentralDb(req);
+
       // Check if organization with this name already exists FIRST
       console.log(`Checking for existing organization: ${orgName}`);
-      const existingOrganization = await this.em.findOne(Organization, { name: orgName });
+      const existingOrgs = await db.select().from(organizationTable).where(eq(organizationTable.name, orgName)).limit(1);
+      const existingOrganization = existingOrgs.length > 0 ? existingOrgs[0] : null;
       if (existingOrganization) {
         return res.status(409).json({
           error: `Organization with name '${orgName}' already exists`,
         });
       }
 
-      // Create the organization entity in the central database but don't persist it yet
-      const organization = this.em.create(Organization, req.body);
+      // Prepare the organization data but don't persist it yet
+      const orgData: NewOrganization = { name: req.body.name };
 
       // Create the organization's dedicated database and credentials
-      console.log(`Creating database for organization: ${organization.name}`);
-      const dbResult = await createOrganizationDb(organization.name);
+      console.log(`Creating database for organization: ${orgData.name}`);
+      const dbResult = await createOrganizationDb(orgData.name);
       dbCreated = true;
       console.log(`Database created successfully: ${dbResult.dbName}`);
 
       // Run migrations on the newly created database
       try {
-        console.log(`Starting migrations for organization: ${organization.name}`);
-        await runMigrationsForSingleDistributedDb(organization, false);
-        console.log(`Migrations completed successfully for: ${organization.name}`);
+        console.log(`Starting migrations for organization: ${orgData.name}`);
+        await runMigrationsForSingleDistributedDb({ name: orgData.name });
+        console.log(`Migrations completed successfully for: ${orgData.name}`);
       } catch (migrationError) {
         console.error(
-          `Failed to run migrations for organization ${organization.name}:`,
+          `Failed to run migrations for organization ${orgData.name}:`,
           migrationError,
         );
-        await deleteOrganizationDb(organization.name);
+        await deleteOrganizationDb(orgData.name);
         return res.status(500).json({
           error: "Failed to initialize organization database schema",
         });
@@ -63,7 +68,11 @@ export default class OrganizationController extends BaseController {
 
       try {
         // Persist to central database only after the database creation succeeded
-        await this.em.persistAndFlush(organization);
+        const orgResults = await db.insert(organizationTable).values(orgData).returning();
+        if (!orgResults || orgResults.length === 0 || !orgResults[0]) {
+          throw new Error("Failed to insert organization: no data returned");
+        }
+        const organization = orgResults[0];
 
         // Clear org cache since a new org was created
         clearOrgCache(organization.name);
@@ -91,7 +100,7 @@ export default class OrganizationController extends BaseController {
           persistError,
         );
 
-        await deleteOrganizationDb(organization.name);
+        await deleteOrganizationDb(orgData.name);
         dbCreated = false;
 
         if (
@@ -136,7 +145,8 @@ export default class OrganizationController extends BaseController {
 
   getAllOrganizations = async (req: Request, res: Response) => {
     try {
-      const organizations = await this.em.find(Organization, {});
+      const db = this.getCentralDb(req);
+      const organizations = await db.select().from(organizationTable).orderBy(asc(organizationTable.id));
       res.status(200).json(organizations);
     } catch (error) {
       console.log(error);
@@ -146,7 +156,9 @@ export default class OrganizationController extends BaseController {
 
   getOrganizationsCount = async (req: Request, res: Response) => {
     try {
-      const count = await this.em.count(Organization, {});
+      const db = this.getCentralDb(req);
+      const result = await db.select({ count: sql<number>`count(*)::int` }).from(organizationTable);
+      const count = result[0]?.count || 0;
       res.status(200).json({ count });
     } catch (error) {
       console.log(error);
@@ -160,17 +172,20 @@ export default class OrganizationController extends BaseController {
       const { email, password, firstName, lastName } = req.body;
 
       // Find the organization in the central database
-      const organization = await this.em.findOne(Organization, { id: orgId! });
+      const db = this.getCentralDb(req);
+      const orgs = await db.select().from(organizationTable).where(eq(organizationTable.id, orgId)).limit(1);
+      const organization = orgs.length > 0 ? orgs[0] : null;
       if (!organization) {
         res.status(404).json({ error: "Organization not found" });
         return;
       }
 
-      // Get the organization-specific database EntityManager
-      const orgEm = await getOrgEm(organization.name);
+      // Get the organization-specific database
+      const orgDb = await getOrgDb(organization.name);
 
       // Check if user with this email already exists in the organization database
-      const existingUser = await orgEm.findOne(OrganizationUser, { email });
+      const existingUsers = await orgDb.select().from(organizationUserTable).where(eq(organizationUserTable.email, email)).limit(1);
+      const existingUser = existingUsers.length > 0 ? existingUsers[0] : null;
       if (existingUser) {
         res.status(409).json({
           error: "User with this email already exists in the organization",
@@ -181,20 +196,32 @@ export default class OrganizationController extends BaseController {
       // Hash the password
       const hashedPassword = await jwtService.hashPassword(password);
 
-      // Create AdminProfile entity
-      const adminProfile = orgEm.create(AdminProfile, {});
+      // Create AdminProfile and OrganizationUser in a transaction
+      const result = await orgDb.transaction(async (tx) => {
+        // Create AdminProfile first
+        const adminProfileResults = await tx.insert(adminProfileTable).values({}).returning();
+        if (!adminProfileResults || adminProfileResults.length === 0 || !adminProfileResults[0]) {
+          throw new Error("Failed to insert admin profile: no data returned");
+        }
+        const adminProfile = adminProfileResults[0];
 
-      // Create OrganizationUser entity with adminProfile
-      const organizationUser = orgEm.create(OrganizationUser, {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        adminProfile,
+        // Create OrganizationUser with reference to adminProfile
+        const organizationUserResults = await tx.insert(organizationUserTable).values({
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          adminProfileId: adminProfile.id,
+        }).returning();
+        if (!organizationUserResults || organizationUserResults.length === 0 || !organizationUserResults[0]) {
+          throw new Error("Failed to insert organization user: no data returned");
+        }
+        const organizationUser = organizationUserResults[0];
+
+        return { adminProfile, organizationUser };
       });
 
-      // Persist both entities to the organization database
-      await orgEm.persistAndFlush([adminProfile, organizationUser]);
+      const { adminProfile, organizationUser } = result;
 
       // Return the created user information
       res.status(201).json({

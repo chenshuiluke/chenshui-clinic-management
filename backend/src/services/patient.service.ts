@@ -1,49 +1,86 @@
-import { EntityManager } from '@mikro-orm/core';
-import OrganizationUser from '../entities/distributed/organization_user';
-import PatientProfile from '../entities/distributed/patient_profile';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
+import * as distributedSchema from '../db/schema/distributed/schema';
+import * as distributedRelations from '../db/schema/distributed/relations';
+import { organizationUserTable, patientProfileTable } from '../db/schema/distributed/schema';
 import jwtService from './jwt.service';
 import cryptoService from '../utils/crypto';
 import { OrgJWTPayload } from '../config/jwt.config';
 import { emailService } from './email.service';
+import type { OrganizationUserWithProfile } from '../middleware/auth';
+
+// Type for organization user with populated profile
+type UserLike = OrganizationUserWithProfile;
+type OrgDatabase = NodePgDatabase<typeof distributedSchema & typeof distributedRelations>;
 
 class PatientService {
-  async registerPatient(em: EntityManager, patientData: any, ipAddress: string, organizationName: string) {
+  async registerPatient(db: OrgDatabase, patientData: any, ipAddress: string, organizationName: string) {
     // Check if a user with the provided email already exists
-    const existingUser = await em.findOne(OrganizationUser, { email: patientData.email });
-    if (existingUser) {
+    const existingUser = await db
+      .select()
+      .from(organizationUserTable)
+      .where(eq(organizationUserTable.email, patientData.email))
+      .limit(1);
+
+    if (existingUser.length > 0) {
       throw new Error('User with this email already exists in the organization');
     }
 
     // Hash the password
     const hashedPassword = await jwtService.hashPassword(patientData.password);
 
-    // Parse dateOfBirth string to Date object
-    const dob = new Date(patientData.dateOfBirth);
+    // Parse dateOfBirth string to Date object, assuming YYYY-MM-DD and treating as UTC
+    const dob = new Date(`${patientData.dateOfBirth}T00:00:00.000Z`);
 
-    // Create PatientProfile entity
-    const patientProfile = em.create(PatientProfile, {
-      dateOfBirth: dob,
-      phoneNumber: patientData.phoneNumber,
-      ipAddress,
-      ...(patientData.address && { address: patientData.address }),
-      ...(patientData.emergencyContactName && { emergencyContactName: patientData.emergencyContactName }),
-      ...(patientData.emergencyContactPhone && { emergencyContactPhone: patientData.emergencyContactPhone }),
-      ...(patientData.bloodType && { bloodType: patientData.bloodType }),
-      ...(patientData.allergies && { allergies: patientData.allergies }),
-      ...(patientData.chronicConditions && { chronicConditions: patientData.chronicConditions }),
-    });
+    let txResult: { organizationUser: any; patientProfile: any } | undefined;
+    try {
+      txResult = await db.transaction(async (tx) => {
+        // Create PatientProfile entity
+        const patientProfileRows = await tx.insert(patientProfileTable).values({
+          dateOfBirth: dob,
+          phoneNumber: patientData.phoneNumber,
+          ipAddress,
+          address: patientData.address ?? null,
+          emergencyContactName: patientData.emergencyContactName ?? null,
+          emergencyContactPhone: patientData.emergencyContactPhone ?? null,
+          bloodType: patientData.bloodType ?? null,
+          allergies: patientData.allergies ?? null,
+          chronicConditions: patientData.chronicConditions ?? null,
+        }).returning();
 
-    // Create OrganizationUser entity with patientProfile
-    const organizationUser = em.create(OrganizationUser, {
-      email: patientData.email,
-      password: hashedPassword,
-      firstName: patientData.firstName,
-      lastName: patientData.lastName,
-      patientProfile,
-    });
+        if (patientProfileRows.length === 0) {
+          throw new Error('Failed to create PatientProfile');
+        }
+        const patientProfile = patientProfileRows[0];
 
-    // Persist both entities
-    await em.persistAndFlush([patientProfile, organizationUser]);
+        // Create OrganizationUser entity with patientProfile
+        const organizationUserRows = await tx.insert(organizationUserTable).values({
+          email: patientData.email,
+          password: hashedPassword,
+          firstName: patientData.firstName,
+          lastName: patientData.lastName,
+          patientProfileId: patientProfile!.id,
+        }).returning();
+
+        if (organizationUserRows.length === 0) {
+          throw new Error('Failed to create OrganizationUser');
+        }
+        const organizationUser = organizationUserRows[0];
+
+        return { organizationUser, patientProfile };
+      });
+    } catch (error: any) {
+      if (error.code === '23505') { // Postgres unique violation
+        throw new Error('User with this email already exists in the organization');
+      }
+      throw error;
+    }
+
+    if (!txResult) {
+      throw new Error('Transaction failed to produce result');
+    }
+    const { organizationUser } = txResult;
+
 
     // Generate JWT tokens
     const payload: OrgJWTPayload = {
@@ -57,8 +94,12 @@ class PatientService {
     const { accessToken, refreshToken, refreshTokenPlain } = jwtService.generateTokenPair(payload);
 
     // Store hashed refresh token on user entity
-    organizationUser.refreshToken = await cryptoService.hashRefreshToken(refreshTokenPlain);
-    await em.flush();
+    await db.update(organizationUserTable)
+      .set({
+        refreshToken: await cryptoService.hashRefreshToken(refreshTokenPlain),
+        updatedAt: new Date(),
+      })
+      .where(eq(organizationUserTable.id, organizationUser.id));
 
     // Send welcome email (don't block on failure)
     try {
@@ -86,7 +127,7 @@ class PatientService {
     };
   }
 
-  async getPatientProfile(user: OrganizationUser) {
+  async getPatientProfile(user: UserLike) {
     if (!user.patientProfile) {
       throw new Error('User does not have a patient profile');
     }
@@ -107,55 +148,90 @@ class PatientService {
     };
   }
 
-  async updatePatientProfile(em: EntityManager, user: OrganizationUser, updateData: any, ipAddress: string) {
+  async updatePatientProfile(db: OrgDatabase, user: UserLike, updateData: any, ipAddress: string) {
     if (!user.patientProfile) {
       throw new Error('User or patient profile not found');
     }
+    const patientProfileId = user.patientProfile!.id;
 
-    // Update user fields if provided
-    if (updateData.firstName) user.firstName = updateData.firstName;
-    if (updateData.lastName) user.lastName = updateData.lastName;
+    const userUpdates: { firstName?: string; lastName?: string; updatedAt?: Date } = {};
+    if (updateData.firstName) userUpdates.firstName = updateData.firstName;
+    if (updateData.lastName) userUpdates.lastName = updateData.lastName;
 
-    // Update patient profile fields if provided
-    if (updateData.dateOfBirth) user.patientProfile.dateOfBirth = new Date(updateData.dateOfBirth);
-    if (updateData.phoneNumber) user.patientProfile.phoneNumber = updateData.phoneNumber;
-    if (updateData.address !== undefined) user.patientProfile.address = updateData.address;
-    if (updateData.emergencyContactName !== undefined) user.patientProfile.emergencyContactName = updateData.emergencyContactName;
-    if (updateData.emergencyContactPhone !== undefined) user.patientProfile.emergencyContactPhone = updateData.emergencyContactPhone;
-    if (updateData.bloodType !== undefined) user.patientProfile.bloodType = updateData.bloodType;
-    if (updateData.allergies !== undefined) user.patientProfile.allergies = updateData.allergies;
-    if (updateData.chronicConditions !== undefined) user.patientProfile.chronicConditions = updateData.chronicConditions;
+    if (Object.keys(userUpdates).length > 0) {
+      userUpdates.updatedAt = new Date();
+      await db.update(organizationUserTable)
+        .set(userUpdates)
+        .where(eq(organizationUserTable.id, user.id));
+    }
 
-    user.patientProfile.ipAddress = ipAddress;
+    const profileUpdates: { [key: string]: any } = {
+      ipAddress,
+      updatedAt: new Date(),
+    };
 
-    await em.flush();
+    if (updateData.dateOfBirth) profileUpdates.dateOfBirth = new Date(`${updateData.dateOfBirth}T00:00:00.000Z`);
+    if (updateData.phoneNumber) profileUpdates.phoneNumber = updateData.phoneNumber;
+    if (updateData.address !== undefined) profileUpdates.address = updateData.address;
+    if (updateData.emergencyContactName !== undefined) profileUpdates.emergencyContactName = updateData.emergencyContactName;
+    if (updateData.emergencyContactPhone !== undefined) profileUpdates.emergencyContactPhone = updateData.emergencyContactPhone;
+    if (updateData.bloodType !== undefined) profileUpdates.bloodType = updateData.bloodType;
+    if (updateData.allergies !== undefined) profileUpdates.allergies = updateData.allergies;
+    if (updateData.chronicConditions !== undefined) profileUpdates.chronicConditions = updateData.chronicConditions;
 
-    return this.getPatientProfile(user);
+    await db.update(patientProfileTable)
+      .set(profileUpdates)
+      .where(eq(patientProfileTable.id, patientProfileId));
+
+    // Reload the user with profile
+    const results = await db
+      .select()
+      .from(organizationUserTable)
+      .leftJoin(patientProfileTable, eq(organizationUserTable.patientProfileId, patientProfileTable.id))
+      .where(eq(organizationUserTable.id, user.id))
+      .limit(1);
+
+    if (results.length === 0) {
+      throw new Error('User or patient profile not found');
+    }
+
+    const updatedUserResult = results[0];
+    
+    if (!updatedUserResult) {
+      throw new Error('User or patient profile not found');
+    }
+
+    const reloadedUser: UserLike = {
+      ...updatedUserResult.organization_user,
+      // The other profiles will be null/undefined, which is fine for UserLike
+      adminProfile: null,
+      doctorProfile: null,
+      patientProfile: updatedUserResult.patient_profile,
+    };
+
+    return this.getPatientProfile(reloadedUser);
   }
 
-  async deletePatientAccount(em: EntityManager, user: OrganizationUser, organizationName: string) {
+  async deletePatientAccount(db: OrgDatabase, user: UserLike, organizationName: string) {
     if (!user.patientProfile) {
       throw new Error('User or patient profile not found');
     }
 
-    // Load the user with patientProfile to ensure we have the full entity
-    await em.populate(user, ['patientProfile']);
+    await db.transaction(async (tx) => {
+      // Clear the refresh token
+      await tx.update(organizationUserTable)
+        .set({ refreshToken: null, updatedAt: new Date() })
+        .where(eq(organizationUserTable.id, user.id));
 
-    // Clear the refresh token before deletion
-    user.refreshToken = null;
-    await em.flush();
+      // Delete the user record
+      await tx.delete(organizationUserTable)
+        .where(eq(organizationUserTable.id, user.id));
 
-    // Use transaction to delete both user and profile
-    await em.transactional(async (transactionalEm) => {
-      // Remove the patient profile first
+      // Delete the patient profile record
       if (user.patientProfile) {
-        transactionalEm.remove(user.patientProfile);
+        await tx.delete(patientProfileTable)
+          .where(eq(patientProfileTable.id, user.patientProfile.id));
       }
-
-      // Remove the user
-      transactionalEm.remove(user);
-
-      await transactionalEm.flush();
     });
 
     // Send deletion confirmation email (don't block on failure)

@@ -1,15 +1,9 @@
 import { z } from 'zod';
 
-// ISO 8601 datetime validator
-const isValidISO8601 = (value: string): boolean => {
-  const date = new Date(value);
-  return !isNaN(date.getTime()) && date.toISOString() === value;
-};
-
 export const bookAppointmentSchema = z.object({
   doctorId: z.number().int().positive(),
   appointmentDateTime: z.string()
-    .refine(isValidISO8601, 'Appointment date must be a valid ISO 8601 datetime')
+    .datetime({ message: 'Appointment date must be a valid ISO 8601 datetime' })
     .refine((value) => {
       const date = new Date(value);
       if (date <= new Date()) {

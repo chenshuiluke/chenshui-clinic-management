@@ -5,19 +5,44 @@ import jwtService, {
   TokenExpiredError,
   TokenInvalidError
 } from '../services/jwt.service';
-import { RequestContext, EntityManager } from '@mikro-orm/core';
-import OrganizationUser from '../entities/distributed/organization_user';
 import { DecodedOrgJWT } from '../config/jwt.config';
 import logger, { securityLogger } from '../utils/logger';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
+import {
+  organizationUserTable,
+  adminProfileTable,
+  doctorProfileTable,
+  patientProfileTable
+} from '../db/schema/distributed/schema';
+import * as distributedSchema from '../db/schema/distributed/schema';
+import * as distributedRelations from '../db/schema/distributed/relations';
 
-declare global {
-  namespace Express {
-    interface Request {
-      organizationUser?: OrganizationUser;
-      em?: EntityManager;
-    }
-  }
+// Type for organization user with profile information
+export type OrganizationUserWithProfile = {
+  id: number;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  refreshToken: string | null;
+  doctorProfileId: number | null;
+  patientProfileId: number | null;
+  adminProfileId: number | null;
+  adminProfile?: typeof adminProfileTable.$inferSelect | null;
+  doctorProfile?: typeof doctorProfileTable.$inferSelect | null;
+  patientProfile?: typeof patientProfileTable.$inferSelect | null;
+};
+
+// Helper to get role from user
+export function getUserRole(user: OrganizationUserWithProfile): 'ADMIN' | 'DOCTOR' | 'PATIENT' {
+  if (user.adminProfile) return 'ADMIN';
+  if (user.doctorProfile) return 'DOCTOR';
+  if (user.patientProfile) return 'PATIENT';
+  throw new Error('User must have exactly one profile (admin, doctor, or patient).');
 }
+
+type Db = NodePgDatabase<typeof distributedSchema & typeof distributedRelations>;
 
 /**
  * Extract client IP from request
@@ -156,7 +181,7 @@ const authenticateAndLoadProfile = async (
   res: Response,
   profileField: 'adminProfile' | 'doctorProfile' | 'patientProfile',
   roleDisplayName: string
-): Promise<OrganizationUser | null> => {
+): Promise<OrganizationUserWithProfile | null> => {
   // Verify token and attach user to request
   const authenticated = await verifyAndAttachUser(req, res);
   if (!authenticated) {
@@ -169,44 +194,55 @@ const authenticateAndLoadProfile = async (
     return null;
   }
 
-  // Check that EntityManager is available
-  // Try to get from RequestContext first, then fallback to req.em
-  let em = RequestContext.getEntityManager();
-  const contextAvailable = !!em;
-  if (!em) {
-    em = req.em as EntityManager;
-  }
-  const reqEmAvailable = !!em && em !== RequestContext.getEntityManager();
-
-  if (!em) {
+  // Check that database is available
+  if (!req.db) {
     logger.error({
       path: req.path,
       method: req.method,
       organization: req.organization,
-      hasContext: contextAvailable,
-      hasReqEm: !!req.em,
       user: req.user ? { userId: req.user.userId, type: req.user.type } : null
-    }, 'EntityManager retrieval failed in auth middleware');
+    }, 'Database not available in auth middleware');
     res.status(500).json({ error: 'Database context not available' });
     return null;
   }
 
-  logger.debug({
-    path: req.path,
-    source: contextAvailable ? 'RequestContext' : 'req.em'
-  }, 'EntityManager successfully retrieved');
+  const db = req.db;
 
-  // Load the organization user with the requested profile
-  const user = await em.findOne(
-    OrganizationUser,
-    { id: req.user.userId },
-    { populate: [profileField] }
-  );
+  // Load the organization user with all profile joins
+  const results = await db
+    .select()
+    .from(organizationUserTable)
+    .leftJoin(adminProfileTable, eq(organizationUserTable.adminProfileId, adminProfileTable.id))
+    .leftJoin(doctorProfileTable, eq(organizationUserTable.doctorProfileId, doctorProfileTable.id))
+    .leftJoin(patientProfileTable, eq(organizationUserTable.patientProfileId, patientProfileTable.id))
+    .where(eq(organizationUserTable.id, req.user.userId))
+    .limit(1);
 
-  if (!user) {
+  if (results.length === 0) {
     res.status(401).json({ error: 'User not found' });
     return null;
   }
+
+  const result = results[0];
+  if (!result) {
+    res.status(401).json({ error: 'User not found' });
+    return null;
+  }
+
+  const user: OrganizationUserWithProfile = {
+    id: result.organization_user.id,
+    email: result.organization_user.email,
+    password: result.organization_user.password,
+    firstName: result.organization_user.firstName,
+    lastName: result.organization_user.lastName,
+    refreshToken: result.organization_user.refreshToken,
+    doctorProfileId: result.organization_user.doctorProfileId,
+    patientProfileId: result.organization_user.patientProfileId,
+    adminProfileId: result.organization_user.adminProfileId,
+    adminProfile: result.admin_profile,
+    doctorProfile: result.doctor_profile,
+    patientProfile: result.patient_profile,
+  };
 
   if (!user[profileField]) {
     res.status(403).json({ error: `${roleDisplayName} access required` });
@@ -215,7 +251,7 @@ const authenticateAndLoadProfile = async (
 
   // Validate that the user's actual role matches what they're trying to access
   // This prevents stale tokens from accessing wrong roles
-  const actualRole = user.getRole();
+  const actualRole = getUserRole(user);
   const expectedRole = profileField.replace('Profile', '').toUpperCase();
 
   if (actualRole !== expectedRole) {

@@ -48,7 +48,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install && npm run start"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   # Frontend Service
   frontend:
