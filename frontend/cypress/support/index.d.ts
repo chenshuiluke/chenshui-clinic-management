@@ -23,7 +23,7 @@ declare global {
         orgName: string,
         email: string,
         password: string,
-        role: 'admin' | 'doctor' | 'patient'
+        role: 'ADMIN' | 'DOCTOR' | 'PATIENT'
       ): Chainable<void>;
 
       /**

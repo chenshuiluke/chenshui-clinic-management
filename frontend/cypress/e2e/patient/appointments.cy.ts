@@ -55,7 +55,7 @@ describe('Patient Appointments', () => {
                   phoneNumber: '5551234567',
                 }).then((patientResponse) => {
                   patientToken = patientResponse.accessToken;
-                  cy.loginAsOrgUser(orgName, `patient-${timestamp}@test.com`, 'password123', 'patient');
+                  cy.loginAsOrgUser(orgName, `patient-${timestamp}@test.com`, 'password123', 'PATIENT');
                 });
               });
             });
@@ -241,7 +241,7 @@ describe('Patient Appointments', () => {
 
     // Get all appointment rows and check order
     cy.get('tbody tr').then(($rows) => {
-      const notes = [];
+      const notes:string[] = [];
       $rows.each((index, row) => {
         const note = Cypress.$(row).find('td').filter(':contains("appointment")').text();
         if (note) notes.push(note);
@@ -478,7 +478,7 @@ describe('Patient Appointments', () => {
             dateOfBirth: '1990-01-01',
             phoneNumber: '5551234567',
           }).then((patientResp) => {
-            cy.loginAsOrgUser(noDoctorOrg, `patient-nodoc-${timestamp}@test.com`, 'password123', 'patient');
+            cy.loginAsOrgUser(noDoctorOrg, `patient-nodoc-${timestamp}@test.com`, 'password123', 'PATIENT');
 
             cy.visit(`/${noDoctorOrg}/patient/appointments/book`);
 
@@ -504,15 +504,13 @@ describe('Patient Appointments', () => {
       licenseNumber: `MD${timestamp}`,
     }, orgAdminToken);
 
-    cy.loginAsOrgUser(orgName, doctorEmail, 'password123', 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, 'password123', 'DOCTOR');
 
     // Try to access patient booking page
     cy.visit(`/${orgName}/patient/appointments/book`, { failOnStatusCode: false });
 
     // Should be denied access
     cy.url().should('not.include', '/patient/appointments/book');
-    cy.contains(/unauthorized|access denied/i).should('be.visible').catch(() => {
-      cy.url().should('not.equal', `${Cypress.config().baseUrl}/${orgName}/patient/appointments/book`);
-    });
+    cy.contains(/unauthorized|access denied/i).should('be.visible')
   });
 });

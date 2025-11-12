@@ -34,7 +34,7 @@ describe('Organization Admin Authentication', () => {
               email: orgAdminEmail,
               password: orgAdminPassword,
               firstName: 'Org',
-              lastName: 'Admin',
+              lastName: 'ADMIN',
             },
             centralAdminToken
           );
@@ -90,7 +90,7 @@ describe('Organization Admin Authentication', () => {
   });
 
   it('should logout successfully', () => {
-    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'admin');
+    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
     cy.visit(`/${orgName}/dashboard`);
 
     // Click logout button
@@ -108,7 +108,7 @@ describe('Organization Admin Authentication', () => {
   });
 
   it('should not access central admin routes', () => {
-    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'admin');
+    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
 
     // Attempt to visit central admin dashboard
     cy.visit('/admin/dashboard', { failOnStatusCode: false });
@@ -131,13 +131,13 @@ describe('Organization Admin Authentication', () => {
           email: org2AdminEmail,
           password: org2AdminPassword,
           firstName: 'Org2',
-          lastName: 'Admin',
+          lastName: 'ADMIN',
         },
         centralAdminToken
       );
 
       // Login as org1 admin
-      cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'admin');
+      cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
 
       // Attempt to visit org2 dashboard
       cy.visit(`/${org2Name}/dashboard`, { failOnStatusCode: false });
@@ -148,7 +148,7 @@ describe('Organization Admin Authentication', () => {
   });
 
   it('should persist authentication across page reloads', () => {
-    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'admin');
+    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
     cy.visit(`/${orgName}/dashboard`);
 
     // Reload page

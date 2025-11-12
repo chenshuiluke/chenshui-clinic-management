@@ -67,8 +67,6 @@ function App() {
                   <Route path="patient/appointments/book" element={<OrgBookAppointment />} />
                   <Route path="patient/appointments" element={<OrgMyAppointments />} />
                   <Route path="patient/profile" element={<OrgProfile />} />
-                  {/* Redirect old profile path to new path */}
-                  <Route path="profile" element={<Navigate to="patient/profile" replace />} />
                 </Route>
               </Route>
             </Routes>

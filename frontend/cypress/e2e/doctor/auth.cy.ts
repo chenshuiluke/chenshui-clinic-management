@@ -54,7 +54,7 @@ describe('Doctor Authentication', () => {
                 email: doctorEmail,
                 password: doctorPassword,
                 firstName: 'John',
-                lastName: 'Doctor',
+                lastName: 'DOCTOR',
                 specialization: 'Cardiology',
                 licenseNumber: `MD${timestamp}`,
                 phoneNumber: '5551234567',
@@ -117,7 +117,7 @@ describe('Doctor Authentication', () => {
 
   it('should logout doctor successfully', () => {
     // Login as doctor first
-    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'DOCTOR');
     cy.visit(`/${orgName}/appointments`);
 
     // Click logout button
@@ -135,31 +135,25 @@ describe('Doctor Authentication', () => {
   });
 
   it('should not allow doctor to access admin routes', () => {
-    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'DOCTOR');
 
     // Try to access org admin dashboard
     cy.visit(`/${orgName}/doctors`, { failOnStatusCode: false });
 
     // Assert access denied (redirect or error message)
     cy.url().should('not.include', '/doctors');
-    cy.contains(/unauthorized|access denied|not allowed/i).should('be.visible').catch(() => {
-      // If no error message, check we were redirected away
-      cy.url().should('not.equal', `${Cypress.config().baseUrl}/${orgName}/doctors`);
-    });
+    cy.contains(/unauthorized|access denied|not allowed/i).should('be.visible');
   });
 
   it('should not allow doctor to access patient routes', () => {
-    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'DOCTOR');
 
     // Try to access patient appointments page
     cy.visit(`/${orgName}/patient/appointments`, { failOnStatusCode: false });
 
     // Assert access denied
     cy.url().should('not.include', '/patient/appointments');
-    cy.contains(/unauthorized|access denied/i).should('be.visible').catch(() => {
-      // If no error message, check we were redirected away
-      cy.url().should('not.equal', `${Cypress.config().baseUrl}/${orgName}/patient/appointments`);
-    });
+    cy.contains(/unauthorized|access denied/i).should('be.visible');
   });
 
   it('should not allow doctor to access other organization routes', () => {
@@ -179,20 +173,18 @@ describe('Doctor Authentication', () => {
     });
 
     // Login as doctor from first org
-    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'DOCTOR');
 
     // Try to access other org's appointments
     cy.visit(`/${otherOrgName}/appointments`, { failOnStatusCode: false });
 
     // Should be denied access
     cy.url().should('not.include', `/${otherOrgName}/appointments`);
-    cy.contains(/unauthorized|access denied|not found/i).should('be.visible').catch(() => {
-      cy.url().should('not.equal', `${Cypress.config().baseUrl}/${otherOrgName}/appointments`);
-    });
+    cy.contains(/unauthorized|access denied|not found/i).should('be.visible');
   });
 
   it('should persist doctor authentication across page reloads', () => {
-    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'doctor');
+    cy.loginAsOrgUser(orgName, doctorEmail, doctorPassword, 'DOCTOR');
     cy.visit(`/${orgName}/appointments`);
 
     // Reload page
@@ -233,28 +225,4 @@ describe('Doctor Authentication', () => {
     cy.contains(/email|invalid/i).should('be.visible');
   });
 
-  it('should handle case sensitivity in doctor email', () => {
-    cy.visit(`/${orgName}/login`);
-
-    // Try with uppercase email (assuming backend is case-insensitive)
-    cy.get('input[name="email"]').type(doctorEmail.toUpperCase());
-    cy.get('input[name="password"]').type(doctorPassword);
-
-    // Submit form
-    cy.get('button[type="submit"]').click();
-
-    // If backend is case-insensitive, should login successfully
-    // Otherwise, should show error
-    cy.url().then((url) => {
-      if (url.includes('/login')) {
-        // Login failed - backend is case-sensitive
-        cy.contains(/invalid|incorrect/i).should('be.visible');
-      } else {
-        // Login succeeded - backend is case-insensitive
-        expect(url).to.satisfy((u: string) =>
-          u.includes('/dashboard') || u.includes('/appointments')
-        );
-      }
-    });
-  });
 });

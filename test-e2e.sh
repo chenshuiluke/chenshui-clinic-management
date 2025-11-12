@@ -31,14 +31,14 @@ set -e
 
 # Clean up
 # echo "Cleaning up Docker containers..." @@@
-# docker compose -f ../docker-compose.cypress.yaml down --volumes
+docker compose -f ../docker-compose.cypress.yaml down --volumes
 
-# # Print results
-# if [ $EXIT_CODE -eq 0 ]; then
-#     echo "✓ All Cypress tests passed!"
-# else
-#     echo "✗ Cypress tests failed with exit code $EXIT_CODE"
-# fi
+# Print results
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "✓ All Cypress tests passed!"
+else
+    echo "✗ Cypress tests failed with exit code $EXIT_CODE"
+fi
 
 # Exit with the captured exit code
 exit $EXIT_CODE

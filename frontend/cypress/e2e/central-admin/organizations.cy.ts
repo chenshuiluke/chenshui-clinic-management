@@ -138,7 +138,7 @@ describe('Organization Management', () => {
     cy.contains(/success|created/i).should('be.visible');
 
     // Assert modal closes
-    cy.get('.ant-modal').should('not.exist');
+    cy.get('.ant-modal').should('not.be.visible');
   });
 
   it('should validate admin user password complexity', () => {

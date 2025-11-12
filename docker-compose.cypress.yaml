@@ -12,7 +12,7 @@ services:
       # Use tmpfs for in-memory storage
       PGDATA: /dev/shm/pgdata
     tmpfs:
-      - /dev/shm:size=256m
+      - /dev/shm:size=512m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinic_user -d clinic_db"]
       interval: 5s

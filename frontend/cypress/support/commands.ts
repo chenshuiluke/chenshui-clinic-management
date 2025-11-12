@@ -40,7 +40,7 @@ Cypress.Commands.add('loginAsCentralAdmin', (email: string, password: string) =>
 /**
  * Login as organization user (admin/doctor/patient) programmatically via API
  */
-Cypress.Commands.add('loginAsOrgUser', (orgName: string, email: string, password: string, role: 'admin' | 'doctor' | 'patient') => {
+Cypress.Commands.add('loginAsOrgUser', (orgName: string, email: string, password: string, role: 'ADMIN' | 'DOCTOR' | 'PATIENT') => {
   cy.log(`Logging in as ${role} in ${orgName}: ${email}`);
 
   const apiUrl = Cypress.env('apiUrl');
