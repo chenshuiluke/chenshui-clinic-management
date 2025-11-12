@@ -236,4 +236,37 @@ export default class OrganizationController extends BaseController {
       res.status(500).json({ error: "Failed to create admin user" });
     }
   };
+
+  checkExists = async (req: Request, res: Response): Promise<void> => {
+    const startTime = Date.now();
+    const CONSTANT_DELAY_MS = 100; // Small constant-time delay to mitigate timing attacks
+
+    try {
+      const orgName = req.params.orgName;
+      const db = this.getCentralDb(req);
+
+      const orgs = await db.select().from(organizationTable).where(eq(organizationTable.name, orgName)).limit(1);
+      const organization = orgs.length > 0 ? orgs[0] : null;
+
+      // Add remaining delay to reach constant time
+      const elapsed = Date.now() - startTime;
+      const remainingDelay = Math.max(0, CONSTANT_DELAY_MS - elapsed);
+      if (remainingDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingDelay));
+      }
+
+      res.status(200).json({ exists: !!organization });
+    } catch (error) {
+      console.error("Failed to check organization existence:", error);
+
+      // Even on error, maintain constant time
+      const elapsed = Date.now() - startTime;
+      const remainingDelay = Math.max(0, CONSTANT_DELAY_MS - elapsed);
+      if (remainingDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingDelay));
+      }
+
+      res.status(200).json({ exists: false });
+    }
+  };
 }

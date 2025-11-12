@@ -122,10 +122,12 @@ export const createOrganizationDb = async (orgName: string) => {
     }
 
     // Create the new user with a secure password
+    // Explicitly set NOCREATEDB, NOCREATEROLE, NOSUPERUSER for security
+    // (these are defaults, but being explicit is better for security clarity)
     console.log(`Creating user: ${dbUser}`);
     try {
       await client.query(
-        format("CREATE USER %I WITH PASSWORD %L", dbUser, dbPassword),
+        format("CREATE USER %I WITH PASSWORD %L NOCREATEDB NOCREATEROLE NOSUPERUSER", dbUser, dbPassword),
       );
     } catch (userError: any) {
       // Handle user already exists in test environment
@@ -166,14 +168,10 @@ export const createOrganizationDb = async (orgName: string) => {
     );
     await client.query(`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`);
 
-    // Ensure the user cannot create new databases
-    await client.query(`ALTER USER "${dbUser}" NOCREATEDB`);
-
-    // Ensure the user cannot create new roles
-    await client.query(`ALTER USER "${dbUser}" NOCREATEROLE`);
-
-    // Ensure the user is not a superuser
-    await client.query(`ALTER USER "${dbUser}" NOSUPERUSER`);
+    // Note: No need to explicitly set NOCREATEDB, NOCREATEROLE, and NOSUPERUSER
+    // as these are the default settings when creating a user with CREATE USER.
+    // Attempting to set NOSUPERUSER requires SUPERUSER privileges which the
+    // RDS master user doesn't have in AWS RDS PostgreSQL.
 
     console.log(
       `Database and user created successfully for organization: ${orgName}`,

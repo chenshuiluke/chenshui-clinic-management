@@ -130,7 +130,8 @@ async function createOrgDb(
         user,
         password,
         database,
-        ssl: false, // Organization databases don't use SSL
+        // SSL must match the environment - RDS requires SSL in production
+        ssl: env.isProduction ? { rejectUnauthorized: false } : false,
         max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,

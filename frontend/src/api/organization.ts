@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { centralApiClient } from './client';
+import { API_BASE_URL } from '../config/constants';
 import type { Organization, CreateOrganizationRequest, CreateAdminUserRequest } from '../types/api';
 
 export const getAllOrganizations = async (): Promise<Organization[]> => {
@@ -95,5 +96,29 @@ export const createAdminUser = async (
       throw new Error(errorMessage || 'Failed to create admin user');
     }
     throw new Error('Failed to create admin user');
+  }
+};
+
+export interface OrganizationExistsResult {
+  exists: boolean;
+  error?: 'network_error' | 'not_found';
+}
+
+export const checkOrganizationExists = async (orgName: string): Promise<OrganizationExistsResult> => {
+  try {
+    const response = await axios.get<{ exists: boolean }>(`${API_BASE_URL}/${orgName}/exists`);
+    return { exists: response.data.exists };
+  } catch (error: unknown) {
+    console.error('Failed to check organization existence:', error);
+
+    if (axios.isAxiosError(error)) {
+      // 404 means the endpoint returned that the org doesn't exist
+      if (error.response?.status === 404) {
+        return { exists: false, error: 'not_found' };
+      }
+    }
+
+    // Any other error is a network/server error
+    return { exists: false, error: 'network_error' };
   }
 };

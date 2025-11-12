@@ -3,7 +3,8 @@ import { z } from "zod";
 export const createOrganizationSchema = z.object({
   name: z
     .string()
-    .min(4),
+    .min(4)
+    .max(50),
 });
 
 export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;
@@ -43,3 +44,9 @@ export const orgIdParamSchema = z.object({
 });
 
 export type OrgIdParam = z.infer<typeof orgIdParamSchema>;
+
+export const orgNameParamSchema = z.object({
+  orgName: z.string().min(1).max(50),
+});
+
+export type OrgNameParam = z.infer<typeof orgNameParamSchema>;

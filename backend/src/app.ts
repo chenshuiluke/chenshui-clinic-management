@@ -3,15 +3,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import logger from './utils/logger';
-import { generalApiRateLimit } from './middleware/rate-limit';
+import { generalApiRateLimit, orgExistsRateLimit } from './middleware/rate-limit';
 import { orgContext } from './middleware/org';
 import { authenticate } from './middleware/auth';
+import { validate } from './middleware/validator';
 import AuthRouter from './routes/auth';
 import OrganizationRouter from './routes/organization';
 import OrgAuthRouter from './routes/org-auth';
 import DoctorRouter from './routes/doctor';
 import PatientRouter from './routes/patient';
 import AppointmentRouter from './routes/appointment';
+import OrganizationController from './controllers/organization';
+import { orgNameParamSchema } from './validators/organization';
 import { getDrizzleDb, closePool } from './db/drizzle-centralized-db';
 import { closeAllOrgConnections as closeDrizzleOrgConnections } from './db/drizzle-organization-db';
 import { runCentralMigrations, runMigrationsForDistributedDbs } from './utils/migrations';
@@ -68,17 +71,12 @@ export async function createApp(): Promise<express.Application> {
 
   app.use(cors({
     origin: (origin, callback) => {
-      // In production, reject requests with no origin for security
-      // In development, allow for tools like Postman
+      // Allow requests with no origin (health checks, server-to-server, etc.)
       if (!origin) {
-        if (isDevelopment) {
-          return callback(null, true);
-        } else {
-          logger.warn({ origin: 'none' }, 'CORS: Blocked request with no origin in production');
-          return callback(new Error('Not allowed by CORS'));
-        }
+        return callback(null, true);
       }
 
+      // Check if origin is in allowed list
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -125,6 +123,13 @@ export async function createApp(): Promise<express.Application> {
 
   // Central auth
   app.use("/auth", AuthRouter);
+
+  // Public organization existence check endpoint (must be before authenticated routes)
+  app.get("/:orgName/exists", orgExistsRateLimit, validate(orgNameParamSchema, 'params'), (req, res) => {
+    const organizationController = new OrganizationController();
+    organizationController.checkExists(req, res);
+  });
+
   app.use("/organizations", authenticate, OrganizationRouter);
 
   // Organization-specific auth

@@ -16,8 +16,9 @@ RUN npm i
 # Build TypeScript
 RUN npm run build
 
-# Remove source files to prevent tsx from loading them
-RUN rm -rf src
+# Remove TypeScript source files but keep migrations
+RUN find src -type f -name "*.ts" ! -path "*/migrations/*" -delete && \
+    find src -type d -empty -delete
 
 # Expose port (adjust if your app uses a different port)
 EXPOSE 3000

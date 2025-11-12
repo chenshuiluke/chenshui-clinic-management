@@ -5,9 +5,11 @@ import {
   createOrganizationSchema,
   createAdminUserSchema,
   orgIdParamSchema,
+  orgNameParamSchema,
   CreateOrganizationDto,
   CreateAdminUserDto,
   OrgIdParam,
+  OrgNameParam,
 } from "../validators/organization";
 
 const router = Router();

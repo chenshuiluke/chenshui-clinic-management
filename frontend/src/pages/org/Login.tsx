@@ -5,6 +5,7 @@ import { Form, Input, Button, Card, Alert, Typography } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useOrgAuth } from '../../contexts/OrgAuthContext';
 import { buildOrgRoute, ROUTES } from '../../config/constants';
+import { OrgExistenceGuard } from '../../components/guards/OrgExistenceGuard';
 
 const { Title, Text, Link } = Typography;
 
@@ -60,84 +61,86 @@ export const OrgLogin: React.FC = () => {
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      backgroundColor: '#f0f2f5'
-    }}>
-      <Card style={{ width: 400, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={2}>{orgName}</Title>
-          <Text type="secondary">Sign in to your account</Text>
-        </div>
+    <OrgExistenceGuard orgName={orgName}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        backgroundColor: '#f0f2f5'
+      }}>
+        <Card style={{ width: 400, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <Title level={2}>{orgName}</Title>
+            <Text type="secondary">Sign in to your account</Text>
+          </div>
 
-        {error && (
-          <Alert
-            message="Login Failed"
-            description={error}
-            type="error"
-            showIcon
-            closable
-            style={{ marginBottom: 16 }}
-          />
-        )}
+          {error && (
+            <Alert
+              message="Login Failed"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              style={{ marginBottom: 16 }}
+            />
+          )}
 
-        <Form
-          form={form}
-          name="org-login"
-          onFinish={onFinish}
-          onFinishFailed={(errorInfo) => {
-            console.error('Form validation failed:', errorInfo);
-          }}
-          layout="vertical"
-          autoComplete="off"
-        >
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[
-              { required: true, message: 'Please input your email!' },
-              { type: 'email', message: 'Please enter a valid email address!' }
-            ]}
+          <Form
+            form={form}
+            name="org-login"
+            onFinish={onFinish}
+            onFinishFailed={(errorInfo) => {
+              console.error('Form validation failed:', errorInfo);
+            }}
+            layout="vertical"
+            autoComplete="off"
           >
-            <Input name="email" placeholder="your.email@example.com" size="large" />
-          </Form.Item>
-
-          <Form.Item
-            label="Password"
-            name="password"
-            rules={[
-              { required: true, message: 'Please input your password!' },
-              { min: 8, message: 'Password must be at least 8 characters!' }
-            ]}
-          >
-            <Input.Password name="password" placeholder="Enter your password" size="large" />
-          </Form.Item>
-
-          <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              size="large"
-              block
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[
+                { required: true, message: 'Please input your email!' },
+                { type: 'email', message: 'Please enter a valid email address!' }
+              ]}
             >
-              Log In
-            </Button>
-          </Form.Item>
-        </Form>
+              <Input name="email" placeholder="your.email@example.com" size="large" />
+            </Form.Item>
 
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <Text type="secondary">
-            New patient?{' '}
-            <Link onClick={() => navigate(buildOrgRoute(orgName, ROUTES.ORG_REGISTER))}>
-              Register here
-            </Link>
-          </Text>
-        </div>
-      </Card>
-    </div>
+            <Form.Item
+              label="Password"
+              name="password"
+              rules={[
+                { required: true, message: 'Please input your password!' },
+                { min: 8, message: 'Password must be at least 8 characters!' }
+              ]}
+            >
+              <Input.Password name="password" placeholder="Enter your password" size="large" />
+            </Form.Item>
+
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                size="large"
+                block
+              >
+                Log In
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <Text type="secondary">
+              New patient?{' '}
+              <Link onClick={() => navigate(buildOrgRoute(orgName, ROUTES.ORG_REGISTER))}>
+                Register here
+              </Link>
+            </Text>
+          </div>
+        </Card>
+      </div>
+    </OrgExistenceGuard>
   );
 };

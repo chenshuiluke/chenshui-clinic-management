@@ -22,6 +22,7 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as sns_subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as ses from "aws-cdk-lib/aws-ses";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 import path from "path";
 
@@ -89,6 +90,27 @@ export class InfrastructureStack extends cdk.Stack {
       identity: ses.Identity.domain("clinic.lukecs.com"),
     });
 
+    // Create JWT secrets for authentication
+    const jwtAccessSecret = new secretsmanager.Secret(this, "JWTAccessSecret", {
+      description: "JWT Access Token Secret for API authentication",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({}),
+        generateStringKey: "secret",
+        passwordLength: 64,
+        excludePunctuation: true,
+      },
+    });
+
+    const jwtRefreshSecret = new secretsmanager.Secret(this, "JWTRefreshSecret", {
+      description: "JWT Refresh Token Secret for API authentication",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({}),
+        generateStringKey: "secret",
+        passwordLength: 64,
+        excludePunctuation: true,
+      },
+    });
+
     const dockerImage = new ecr_assets.DockerImageAsset(
       this,
       "APIDockerImage",
@@ -127,15 +149,19 @@ export class InfrastructureStack extends cdk.Stack {
               AWS_REGION: this.region,
               AWS_SES_FROM_EMAIL: "noreply@clinic.lukecs.com",
               AWS_SES_FROM_NAME: "Clinic Management System",
+              // CORS configuration
+              CORS_ALLOWED_ORIGINS: "https://clinic.lukecs.com",
             },
 
-            // Add secrets (database credentials)
+            // Add secrets (database credentials and JWT secrets)
             secrets: {
               DB_USER: ecs.Secret.fromSecretsManager(db.secret!, "username"),
               DB_PASSWORD: ecs.Secret.fromSecretsManager(
                 db.secret!,
                 "password",
               ),
+              JWT_ACCESS_SECRET: ecs.Secret.fromSecretsManager(jwtAccessSecret, "secret"),
+              JWT_REFRESH_SECRET: ecs.Secret.fromSecretsManager(jwtRefreshSecret, "secret"),
             },
 
             logDriver: ecs.LogDrivers.awsLogs({
@@ -173,6 +199,28 @@ export class InfrastructureStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["ses:SendEmail", "ses:SendRawEmail"],
         resources: ["*"],
+      }),
+    );
+
+    // Grant Secrets Manager permissions to ECS task role
+    // This allows the ECS tasks to manage organization database secrets
+    // Permissions follow principle of least privilege:
+    // - CreateSecret: Required for creating new organization database credentials
+    // - DeleteSecret: Required for cleanup when deleting organizations
+    // - GetSecretValue: Required to retrieve credentials when connecting to org databases
+    // - TagResource: Required for adding organization metadata tags during creation
+    // - Resources limited to secrets with "clinic-db-" prefix only
+    // Note: PutSecretValue is NOT granted - secrets are immutable after creation
+    fargateService.taskDefinition.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:DeleteSecret",
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:TagResource",
+        ],
+        resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:clinic-db-*`],
       }),
     );
 
@@ -263,17 +311,7 @@ export class InfrastructureStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
-    // 2. CloudFront Origin Access Control (OAC)
-    const oac = new cloudfront.CfnOriginAccessControl(this, "FrontendOAC", {
-      originAccessControlConfig: {
-        name: "FrontendBucketOAC",
-        originAccessControlOriginType: "s3",
-        signingBehavior: "always",
-        signingProtocol: "sigv4",
-      },
-    });
-
-    // 3. CloudFront Distribution
+    // 2. CloudFront Distribution with Origin Access Control
     const frontendDistribution = new cloudfront.Distribution(
       this,
       "FrontendDistribution",
@@ -282,7 +320,7 @@ export class InfrastructureStack extends cdk.Stack {
         domainNames: ["clinic.lukecs.com"],
         certificate: certificate,
         defaultBehavior: {
-          origin: new origins.S3Origin(frontendBucket),
+          origin: origins.S3BucketOrigin.withOriginAccessControl(frontendBucket),
           viewerProtocolPolicy:
             cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
@@ -305,34 +343,10 @@ export class InfrastructureStack extends cdk.Stack {
         ],
       },
     );
-    
-    // Add OAC: Attach a policy to the S3 bucket that allows CloudFront to read objects.
-    frontendBucket.addToResourcePolicy(
-      new iam.PolicyStatement({
-        actions: ["s3:GetObject"],
-        resources: [frontendBucket.arnForObjects("*")],
-        principals: [new iam.ServicePrincipal("cloudfront.amazonaws.com")],
-        conditions: {
-          StringEquals: {
-            "AWS:SourceArn": `arn:aws:cloudfront::${this.account}:distribution/${frontendDistribution.distributionId}`,
-          },
-        },
-      })
-    );
-    
-    // Update the CloudFront distribution to use the OAC
-    const cfnDistribution = frontendDistribution.node.defaultChild as cloudfront.CfnDistribution;
-    cfnDistribution.addPropertyOverride(
-      'DistributionConfig.Origins.Items.0.S3OriginConfig.OriginAccessIdentity',
-      ''
-    );
-    cfnDistribution.addPropertyOverride(
-      'DistributionConfig.Origins.Items.0.OriginAccessControlId',
-      oac.attrId
-    );
 
 
-    // 4. Deploy Frontend Assets to S3
+    // 3. Deploy Frontend Assets to S3
+    // Frontend is automatically built during deployment
     new s3deploy.BucketDeployment(this, "DeployFrontend", {
       sources: [
         s3deploy.Source.asset(path.join(__dirname, "../../frontend"), {
@@ -341,11 +355,16 @@ export class InfrastructureStack extends cdk.Stack {
             command: [
               "sh",
               "-c",
-              "npm ci && npm run build && cp -r dist/* /asset-output/",
+              [
+                "npm ci --legacy-peer-deps",
+                "npm run build",
+                "cp -r dist/* /asset-output/",
+              ].join(" && "),
             ],
             environment: {
               VITE_API_BASE_URL: "https://api.clinic.lukecs.com",
             },
+            user: "root",
           },
         }),
       ],
@@ -355,7 +374,7 @@ export class InfrastructureStack extends cdk.Stack {
       prune: true,
     });
 
-    // 5. Create Route53 A Record for Frontend
+    // 4. Create Route53 A Record for Frontend
     new route53.ARecord(this, "FrontendARecord", {
       zone: hostedZone,
       target: route53.RecordTarget.fromAlias(
@@ -363,7 +382,7 @@ export class InfrastructureStack extends cdk.Stack {
       ),
     });
 
-    // 6. CloudFormation Outputs
+    // 5. CloudFormation Outputs
     new cdk.CfnOutput(this, "FrontendUrl", {
       value: "https://clinic.lukecs.com",
     });

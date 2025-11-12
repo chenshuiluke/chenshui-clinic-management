@@ -110,9 +110,20 @@ export function orgContext(
     // Decode the URL-encoded organization name (e.g., Test%20Hospital -> Test Hospital)
     const orgName = decodeURIComponent(match[1]);
 
+    // Check if this is the existence check endpoint - skip org validation for it
+    const isExistsPath = match[2] === '/exists' || req.path === `/${match[1]}/exists`;
+
     // Perform async operations and create context once ORM is available
     (async () => {
       try {
+        // Skip organization existence check for the /exists endpoint
+        if (isExistsPath) {
+          // For exists endpoint, just set central DB and continue
+          req.centralDb = await getDrizzleDb();
+          next();
+          return;
+        }
+
         // Verify organization exists before creating ORM connection
         const exists = await organizationExists(orgName);
 

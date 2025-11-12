@@ -229,6 +229,36 @@ const refreshTokenConfig = {
 export let refreshTokenRateLimit = rateLimit(refreshTokenConfig);
 
 /**
+ * Rate limit for organization existence checks
+ * Stricter limit to prevent enumeration attacks
+ * 20 attempts per 5 minutes per IP
+ */
+const orgExistsConfig = {
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // 20 attempts
+  message: 'Too many organization existence checks. Please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    // Use only IP for org existence checks
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  },
+  handler: (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+    securityLogger.rateLimitExceeded(req.path, ip);
+    res.status(429).json({
+      error: 'Too many organization existence checks. Please try again later.'
+    });
+  },
+  skip: (req: Request) => {
+    return process.env.NODE_ENV === 'test';
+  },
+  validate: false // Disable IPv6 validation warning
+};
+
+export let orgExistsRateLimit = rateLimit(orgExistsConfig);
+
+/**
  * Reset all rate limiters (for testing purposes)
  * Recreates all limiter instances to ensure clean state
  */
@@ -239,4 +269,5 @@ export const resetRateLimiters = async (): Promise<void> => {
   generalApiRateLimit = rateLimit(generalApiConfig);
   sensitiveOperationRateLimit = rateLimit(sensitiveOperationConfig);
   refreshTokenRateLimit = rateLimit(refreshTokenConfig);
+  orgExistsRateLimit = rateLimit(orgExistsConfig);
 };
