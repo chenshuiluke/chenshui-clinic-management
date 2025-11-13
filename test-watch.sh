@@ -4,8 +4,7 @@
 # This script starts the necessary infrastructure and runs tests with file watching
 
 echo "Starting test infrastructure..."
-docker compose -f docker-compose.yaml -f docker-compose.test.yaml up -d db sqs
-
+docker compose -f docker-compose.yaml -f docker-compose.test.yaml up -d db
 echo "Waiting for services to be healthy..."
 sleep 5
 

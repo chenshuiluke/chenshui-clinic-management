@@ -1,9 +1,13 @@
 # Chen Shui Clinic Management System
 
 [![Tests](https://github.com/chenshuiluke/chenshui-clinic-management/actions/workflows/test.yml/badge.svg)](https://github.com/chenshuiluke/chenshui-clinic-management/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/chenshuiluke/chenshui-clinic-management/graph/badge.svg?token=N22Q6LB864)](https://codecov.io/gh/chenshuiluke/chenshui-clinic-management)
 
 A comprehensive clinic management system built with Node.js, Express, and PostgreSQL.
+
+There are two sections to this system: The central admin section for app level admins and the per-organization section where clinics can have their own clinic admins, doctors and patients. The central admin data is stored in a central db while each clinic or organization's data is stored in their own database.
+
+### Deploying 
+The infrastructure uses AWS CDK to setup resources and deploy infrastructure changes and code changes. To deploy, just setup the AWS CDK CLI locally and run `cdk deploy CoreInfrastructureStack FrontendStack ApiStack`. You can also deploy the `DnsStack` if you ever need to. The  `--require-approval never` flag is useful if you just need to deploy and rapidly iterate.
 
 ### Running tests
 
@@ -23,20 +27,5 @@ A comprehensive clinic management system built with Node.js, Express, and Postgr
 The project includes comprehensive E2E tests using Cypress that test the entire application stack (frontend, backend, database) in an isolated Docker environment.
 
 ```bash
-# Quick start - run all E2E tests
 ./test-e2e.sh
 ```
-
-This script runs all Cypress tests in Docker with automatic cleanup. Tests cover all user roles:
-
-- **Central admin:** login, organization management, admin user creation
-- **Organization admin:** login, doctor management, role-based access control
-- **Doctor:** login, appointment management (approve/decline/complete), patient data access
-- **Patient:** registration, login, profile management, appointment booking/cancellation, account deletion
-- **Cross-cutting:** authentication guards, cross-organization isolation, token validation
-
-For detailed documentation on running E2E tests locally, debugging, and Docker configuration, see `frontend/README.md`.
-
-**CI/CD Integration:**
-
-The E2E test suite is designed to run in CI/CD pipelines. The `test-e2e.sh` script exits with code 0 on success and non-zero on failure, making it suitable for automated testing in GitHub Actions, GitLab CI, or other CI/CD platforms.
