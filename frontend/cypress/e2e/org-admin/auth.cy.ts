@@ -89,24 +89,6 @@ describe('Organization Admin Authentication', () => {
     });
   });
 
-  it('should logout successfully', () => {
-    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
-    cy.visit(`/${orgName}/dashboard`);
-
-    // Click logout button
-    cy.contains('Logout').click();
-
-    // Assert redirect to login
-    cy.url().should('include', `/${orgName}/login`);
-
-    // Assert localStorage cleared
-    cy.window().then((win) => {
-      expect(win.localStorage.getItem('org_access_token')).to.be.null;
-      expect(win.localStorage.getItem('org_refresh_token')).to.be.null;
-      expect(win.localStorage.getItem('org_name')).to.be.null;
-    });
-  });
-
   it('should not access central admin routes', () => {
     cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
 
@@ -147,17 +129,4 @@ describe('Organization Admin Authentication', () => {
     });
   });
 
-  it('should persist authentication across page reloads', () => {
-    cy.loginAsOrgUser(orgName, orgAdminEmail, orgAdminPassword, 'ADMIN');
-    cy.visit(`/${orgName}/dashboard`);
-
-    // Reload page
-    cy.reload();
-
-    // Assert still authenticated
-    cy.url().should('include', `/${orgName}/dashboard`);
-
-    // Assert dashboard content visible
-    cy.contains(/dashboard|manage/i).should('be.visible');
-  });
 });

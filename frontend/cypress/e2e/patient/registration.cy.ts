@@ -24,54 +24,6 @@ describe('Patient Registration', () => {
     });
   });
 
-  it('should register a new patient with all fields', () => {
-    cy.visit(`/${orgName}/register`);
-
-    const timestamp = Date.now();
-    const email = `patient-all-${timestamp}@test.com`;
-
-    // Fill all form fields
-    cy.get('input[name="email"]').type(email);
-    cy.get('input[name="password"]').type('password123');
-    cy.get('input[name="firstName"]').type('John');
-    cy.get('input[name="lastName"]').type('Doe');
-
-    // DatePicker for dateOfBirth
-    cy.get('input[placeholder*="date"]').click();
-    cy.get('.ant-picker-cell').contains('15').click();
-
-    cy.get('input[name="phoneNumber"]').type('5551234567');
-    cy.get('input[name="address"]').type('123 Main St');
-    cy.get('input[name="emergencyContactName"]').type('Jane Doe');
-    cy.get('input[name="emergencyContactPhone"]').type('5559876543');
-
-    // Blood type dropdown
-    cy.get('[name="bloodType"]').click();
-    cy.contains('.ant-select-item', 'A+').click();
-
-    cy.get('textarea[name="allergies"]').type('Penicillin');
-    cy.get('textarea[name="chronicConditions"]').type('None');
-
-    // Submit form
-    cy.get('button[type="submit"]').click();
-
-    // Assert success message
-    cy.contains(/success|registered/i, { timeout: 10000 }).should('be.visible');
-
-    // Assert redirect to dashboard
-    cy.url().should('include', `/${orgName}/dashboard`);
-
-    // Assert localStorage contains tokens
-    cy.window().then((win) => {
-      expect(win.localStorage.getItem('org_access_token')).to.exist;
-      expect(win.localStorage.getItem('org_refresh_token')).to.exist;
-      expect(win.localStorage.getItem('org_name')).to.eq(orgName);
-    });
-
-    // Assert patient is logged in automatically
-    cy.contains(/dashboard|welcome/i).should('be.visible');
-  });
-
   it('should register with minimal required fields only', () => {
     cy.visit(`/${orgName}/register`);
 

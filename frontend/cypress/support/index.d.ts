@@ -17,7 +17,7 @@ declare global {
        * @param email - User email address
        * @param password - User password
        * @param role - User role (admin, doctor, or patient)
-       * @example cy.loginAsOrgUser('hospital', 'doctor@test.com', 'password123', 'doctor')
+       * @example cy.loginAsOrgUser('hospital', 'doctor@test.com', 'password123', 'DOCTOR')
        */
       loginAsOrgUser(
         orgName: string,
@@ -128,22 +128,6 @@ declare global {
         },
         patientToken: string
       ): Chainable<any | null>;
-
-      /**
-       * Set a specific localStorage item
-       * @param key - Storage key
-       * @param value - Storage value
-       * @example cy.setLocalStorageItem('token', 'abc123')
-       */
-      setLocalStorageItem(key: string, value: string): Chainable<void>;
-
-      /**
-       * Get a specific localStorage item
-       * @param key - Storage key
-       * @returns Storage value or null
-       * @example cy.getLocalStorageItem('token').should('exist')
-       */
-      getLocalStorageItem(key: string): Chainable<string | null>;
     }
   }
 }

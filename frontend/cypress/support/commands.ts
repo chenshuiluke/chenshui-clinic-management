@@ -348,27 +348,5 @@ Cypress.Commands.add('seedAppointment', (orgName: string, appointmentData: { doc
   });
 });
 
-
-/**
- * Set a specific localStorage item
- */
-Cypress.Commands.add('setLocalStorageItem', (key: string, value: string) => {
-  return cy.window().then((win) => {
-    win.localStorage.setItem(key, value);
-    Cypress.log({ message: `Setting localStorage: ${key}` });
-  });
-});
-
-/**
- * Get a specific localStorage item
- */
-Cypress.Commands.add('getLocalStorageItem', (key: string) => {
-  return cy.window().then((win) => {
-    const value = win.localStorage.getItem(key);
-    Cypress.log({ message: `Getting localStorage: ${key} = ${value}` });
-    return value;
-  });
-});
-
 // Export for TypeScript
 export {};

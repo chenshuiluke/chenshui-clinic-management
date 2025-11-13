@@ -7,7 +7,6 @@ import {
   Typography,
   message,
   notification,
-  Modal,
   Tooltip,
   Descriptions,
   Drawer,
@@ -91,84 +90,6 @@ const AppointmentsContent: React.FC = () => {
   const handleStatusFilter = (status: AppointmentStatus | undefined) => {
     setStatusFilter(status);
     setCurrentPage(1);
-  };
-
-  const handleApprove = (appointmentId: number) => {
-    Modal.confirm({
-      title: 'Approve Appointment',
-      content: 'Are you sure you want to approve this appointment? The patient will be notified.',
-      okText: 'Approve',
-      okType: 'primary',
-      onOk: async () => {
-        if (!orgName) return;
-
-        try {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: 'approve' }));
-          await approveAppointment(orgName, appointmentId);
-          message.success('Appointment approved successfully');
-          await fetchAppointments();
-        } catch (error: any) {
-          notification.error({
-            message: 'Failed to approve appointment',
-            description: error.message || 'An error occurred while approving the appointment',
-          });
-        } finally {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: null }));
-        }
-      },
-    });
-  };
-
-  const handleDecline = (appointmentId: number) => {
-    Modal.confirm({
-      title: 'Decline Appointment',
-      content: 'Are you sure you want to decline this appointment? The patient will be notified.',
-      okText: 'Decline',
-      okType: 'danger',
-      onOk: async () => {
-        if (!orgName) return;
-
-        try {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: 'decline' }));
-          await declineAppointment(orgName, appointmentId);
-          message.success('Appointment declined successfully');
-          await fetchAppointments();
-        } catch (error: any) {
-          notification.error({
-            message: 'Failed to decline appointment',
-            description: error.message || 'An error occurred while declining the appointment',
-          });
-        } finally {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: null }));
-        }
-      },
-    });
-  };
-
-  const handleComplete = (appointmentId: number) => {
-    Modal.confirm({
-      title: 'Complete Appointment',
-      content: 'Mark this appointment as completed? This action cannot be undone.',
-      okText: 'Complete',
-      okType: 'primary',
-      onOk: async () => {
-        if (!orgName) return;
-
-        try {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: 'complete' }));
-          await completeAppointment(orgName, appointmentId);
-          message.success('Appointment marked as completed');
-          await fetchAppointments();
-        } catch (error: any) {
-          notification.error({
-            message: 'Failed to complete appointment',
-            description: error.message || 'An error occurred while completing the appointment',
-          });
-        } finally {
-          setActionLoading((prev) => ({ ...prev, [appointmentId]: null }));
-        }
-      },
-    });
   };
 
   const handleViewDetails = (appointment: DoctorAppointment) => {
@@ -277,7 +198,24 @@ const AppointmentsContent: React.FC = () => {
                   type="primary"
                   size="small"
                   icon={<CheckOutlined />}
-                  onClick={() => handleApprove(record.id)}
+                  onClick={async () => {
+                    message.warning('Are you sure? This action cannot be undone.');
+                    if (!orgName) return;
+
+                    try {
+                      setActionLoading((prev) => ({ ...prev, [record.id]: 'approve' }));
+                      await approveAppointment(orgName, record.id);
+                      message.success('Appointment approved successfully');
+                      await fetchAppointments();
+                    } catch (error: any) {
+                      notification.error({
+                        message: 'Failed to approve appointment',
+                        description: error.message || 'An error occurred while approving the appointment',
+                      });
+                    } finally {
+                      setActionLoading((prev) => ({ ...prev, [record.id]: null }));
+                    }
+                  }}
                   loading={actionLoading[record.id] === 'approve'}
                   disabled={hasAnyActionInProgress && !isLoading}
                 >
@@ -287,7 +225,24 @@ const AppointmentsContent: React.FC = () => {
                   danger
                   size="small"
                   icon={<CloseCircleOutlined />}
-                  onClick={() => handleDecline(record.id)}
+                  onClick={async () => {
+                    message.warning('Are you sure? This action cannot be undone.');
+                    if (!orgName) return;
+
+                    try {
+                      setActionLoading((prev) => ({ ...prev, [record.id]: 'decline' }));
+                      await declineAppointment(orgName, record.id);
+                      message.success('Appointment declined successfully');
+                      await fetchAppointments();
+                    } catch (error: any) {
+                      notification.error({
+                        message: 'Failed to decline appointment',
+                        description: error.message || 'An error occurred while declining the appointment',
+                      });
+                    } finally {
+                      setActionLoading((prev) => ({ ...prev, [record.id]: null }));
+                    }
+                  }}
                   loading={actionLoading[record.id] === 'decline'}
                   disabled={hasAnyActionInProgress && !isLoading}
                 >
@@ -300,7 +255,24 @@ const AppointmentsContent: React.FC = () => {
                 type="primary"
                 size="small"
                 icon={<CheckCircleOutlined />}
-                onClick={() => handleComplete(record.id)}
+                onClick={async () => {
+                  message.warning('Are you sure? This action cannot be undone.');
+                  if (!orgName) return;
+
+                  try {
+                    setActionLoading((prev) => ({ ...prev, [record.id]: 'complete' }));
+                    await completeAppointment(orgName, record.id);
+                    message.success('Appointment marked as completed');
+                    await fetchAppointments();
+                  } catch (error: any) {
+                    notification.error({
+                      message: 'Failed to complete appointment',
+                      description: error.message || 'An error occurred while completing the appointment',
+                    });
+                  } finally {
+                    setActionLoading((prev) => ({ ...prev, [record.id]: null }));
+                  }
+                }}
                 loading={actionLoading[record.id] === 'complete'}
                 disabled={hasAnyActionInProgress && !isLoading}
               >
@@ -477,9 +449,24 @@ const AppointmentsContent: React.FC = () => {
                     <Button
                       type="primary"
                       icon={<CheckOutlined />}
-                      onClick={() => {
+                      onClick={async () => {
                         setDrawerVisible(false);
-                        handleApprove(selectedAppointment.id);
+                        message.warning('Are you sure? This action cannot be undone.');
+                        if (!orgName) return;
+
+                        try {
+                          setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: 'approve' }));
+                          await approveAppointment(orgName, selectedAppointment.id);
+                          message.success('Appointment approved successfully');
+                          await fetchAppointments();
+                        } catch (error: any) {
+                          notification.error({
+                            message: 'Failed to approve appointment',
+                            description: error.message || 'An error occurred while approving the appointment',
+                          });
+                        } finally {
+                          setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: null }));
+                        }
                       }}
                       loading={actionLoading[selectedAppointment.id] === 'approve'}
                     >
@@ -488,9 +475,24 @@ const AppointmentsContent: React.FC = () => {
                     <Button
                       danger
                       icon={<CloseCircleOutlined />}
-                      onClick={() => {
+                      onClick={async () => {
                         setDrawerVisible(false);
-                        handleDecline(selectedAppointment.id);
+                        message.warning('Are you sure? This action cannot be undone.');
+                        if (!orgName) return;
+
+                        try {
+                          setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: 'decline' }));
+                          await declineAppointment(orgName, selectedAppointment.id);
+                          message.success('Appointment declined successfully');
+                          await fetchAppointments();
+                        } catch (error: any) {
+                          notification.error({
+                            message: 'Failed to decline appointment',
+                            description: error.message || 'An error occurred while declining the appointment',
+                          });
+                        } finally {
+                          setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: null }));
+                        }
                       }}
                       loading={actionLoading[selectedAppointment.id] === 'decline'}
                     >
@@ -502,9 +504,24 @@ const AppointmentsContent: React.FC = () => {
                   <Button
                     type="primary"
                     icon={<CheckCircleOutlined />}
-                    onClick={() => {
+                    onClick={async () => {
                       setDrawerVisible(false);
-                      handleComplete(selectedAppointment.id);
+                      message.warning('Are you sure? This action cannot be undone.');
+                      if (!orgName) return;
+
+                      try {
+                        setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: 'complete' }));
+                        await completeAppointment(orgName, selectedAppointment.id);
+                        message.success('Appointment marked as completed');
+                        await fetchAppointments();
+                      } catch (error: any) {
+                        notification.error({
+                          message: 'Failed to complete appointment',
+                          description: error.message || 'An error occurred while completing the appointment',
+                        });
+                      } finally {
+                        setActionLoading((prev) => ({ ...prev, [selectedAppointment.id]: null }));
+                      }
                     }}
                     loading={actionLoading[selectedAppointment.id] === 'complete'}
                   >

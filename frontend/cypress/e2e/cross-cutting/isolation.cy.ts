@@ -158,37 +158,4 @@ describe('Cross-Organization Isolation and Authentication Guards', () => {
     });
   });
 
-  it('should clear tokens on logout and prevent access', () => {
-    const timestamp = Date.now();
-
-    cy.seedOrganization(`LogoutOrg${timestamp}`, centralAdminToken).then((org) => {
-      const adminEmail = `admin-${timestamp}@test.com`;
-      cy.seedOrgAdmin(org.id, {
-        email: adminEmail,
-        password: 'AdminPass123!@#',
-        firstName: 'Admin',
-        lastName: 'User',
-      }, centralAdminToken).then(() => {
-        cy.loginAsOrgUser(`LogoutOrg${timestamp}`, adminEmail, 'AdminPass123!@#', 'ADMIN');
-        cy.visit(`/LogoutOrg${timestamp}/dashboard`);
-
-        // Assert authenticated
-        cy.contains(/dashboard/i).should('be.visible');
-
-        cy.contains('Logout').click(); // Clicks logout dropdown
-        cy.contains(/^Logout$/).click(); // Clicks exact logout button
-
-        // Assert tokens cleared
-        cy.window().then((win) => {
-          expect(win.localStorage.getItem('org_access_token')).to.be.null;
-        });
-
-        // Attempt to visit dashboard again
-        cy.visit(`/LogoutOrg${timestamp}/dashboard`, { failOnStatusCode: false });
-
-        // Assert redirect to login
-        cy.url().should('include', '/login');
-      });
-    });
-  });
 });

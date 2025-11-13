@@ -6,7 +6,7 @@
 set -e
 
 echo "[INFO] Starting test infrastructure..."
-docker compose -f docker-compose.yaml -f docker-compose.test.yaml up -d db sqs
+docker compose -f docker-compose.yaml -f docker-compose.test.yaml up -d db
 
 echo "[INFO] Waiting for services to be ready..."
 sleep 10

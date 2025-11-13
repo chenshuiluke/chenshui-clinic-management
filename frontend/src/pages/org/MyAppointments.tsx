@@ -7,7 +7,6 @@ import {
   Typography,
   message,
   notification,
-  Modal,
   Tooltip,
 } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -71,31 +70,24 @@ const MyAppointmentsContent: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleCancelAppointment = (appointmentId: number) => {
-    Modal.confirm({
-      title: 'Cancel Appointment',
-      content: 'Are you sure you want to cancel this appointment? This action cannot be undone.',
-      okText: 'Yes, Cancel',
-      okType: 'danger',
-      cancelText: 'No, Keep It',
-      onOk: async () => {
-        if (!orgName) return;
+  const handleCancelAppointment = async (appointmentId: number) => {
+    message.warning('Are you sure you want to cancel?');
 
-        try {
-          setCancelling(appointmentId);
-          await cancelAppointment(orgName, appointmentId);
-          message.success('Appointment cancelled successfully');
-          await fetchAppointments();
-        } catch (error: any) {
-          notification.error({
-            message: 'Failed to cancel appointment',
-            description: error.message || 'An error occurred while cancelling the appointment',
-          });
-        } finally {
-          setCancelling(null);
-        }
-      },
-    });
+    if (!orgName) return;
+
+    try {
+      setCancelling(appointmentId);
+      await cancelAppointment(orgName, appointmentId);
+      message.success('Appointment cancelled successfully');
+      await fetchAppointments();
+    } catch (error: any) {
+      notification.error({
+        message: 'Failed to cancel appointment',
+        description: error.message || 'An error occurred while cancelling the appointment',
+      });
+    } finally {
+      setCancelling(null);
+    }
   };
 
   const getStatusTag = (status: AppointmentStatus) => {

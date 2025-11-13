@@ -221,7 +221,7 @@ describe('Organization Management', () => {
 
     // Get all organization names in the table and verify ascending order
     cy.get('tbody tr').then(($rows) => {
-      const displayedNames = [];
+      const displayedNames: string[] = [];
       $rows.each((index, row) => {
         const name = Cypress.$(row).find('td').first().text().trim();
         if (name) displayedNames.push(name);
@@ -242,7 +242,7 @@ describe('Organization Management', () => {
 
     // Get all organization names again and verify descending order
     cy.get('tbody tr').then(($rows) => {
-      const displayedNames = [];
+      const displayedNames: string[] = [];
       $rows.each((index, row) => {
         const name = Cypress.$(row).find('td').first().text().trim();
         if (name) displayedNames.push(name);

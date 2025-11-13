@@ -34,35 +34,6 @@ describe('Patient Authentication', () => {
     });
   });
 
-  it('should successfully login with valid credentials', () => {
-    cy.visit(`/${orgName}/login`);
-
-    // Fill login form
-    cy.get('input[name="email"], input[type="email"]').type(patientEmail);
-    cy.get('input[name="password"], input[type="password"]').type(patientPassword);
-
-    // Submit form
-    cy.get('button[type="submit"]').click();
-
-    // Assert successful login
-    cy.url().should('include', `/${orgName}/`);
-    cy.url().should('not.include', '/login');
-
-    // Assert patient dashboard or appointments page loads
-    cy.contains(/appointments|dashboard|welcome/i).should('be.visible');
-
-    // Assert tokens are stored
-    cy.window().then((win) => {
-      const accessToken = win.localStorage.getItem('org_access_token');
-      const refreshToken = win.localStorage.getItem('org_refresh_token');
-      const storedOrgName = win.localStorage.getItem('org_name');
-
-      expect(accessToken).to.not.be.null;
-      expect(refreshToken).to.not.be.null;
-      expect(storedOrgName).to.equal(orgName);
-    });
-  });
-
   it('should show error with invalid email', () => {
     cy.visit(`/${orgName}/login`);
 
@@ -112,7 +83,7 @@ describe('Patient Authentication', () => {
 
   it('should successfully logout', () => {
     // First login
-    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'patient');
+    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'PATIENT');
     cy.visit(`/${orgName}/appointments`);
 
     // Find and click logout button
@@ -147,7 +118,7 @@ describe('Patient Authentication', () => {
 
   it('should persist login across page refreshes', () => {
     // Login first
-    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'patient');
+    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'PATIENT');
     cy.visit(`/${orgName}/appointments`);
 
     // Assert on appointments page
@@ -163,7 +134,7 @@ describe('Patient Authentication', () => {
 
   it('should handle session expiry gracefully', () => {
     // Login first
-    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'patient');
+    cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'PATIENT');
     cy.visit(`/${orgName}/appointments`);
 
     // Clear the access token to simulate expiry

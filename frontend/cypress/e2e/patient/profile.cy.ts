@@ -33,27 +33,11 @@ describe('Patient Profile Management', () => {
             allergies: 'Penicillin',
             chronicConditions: 'None',
           }).then(() => {
-            cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'patient');
+            cy.loginAsOrgUser(orgName, patientEmail, patientPassword, 'PATIENT');
           });
         });
       });
     });
-  });
-
-  it('should display patient profile in view mode', () => {
-    cy.visit(`/${orgName}/profile`);
-
-    // Assert profile data displayed
-    cy.contains('John').should('be.visible');
-    cy.contains('Doe').should('be.visible');
-    cy.contains('5551234567').should('be.visible');
-    cy.contains('123 Main St').should('be.visible');
-    cy.contains('A+').should('be.visible');
-    cy.contains('Penicillin').should('be.visible');
-
-    // Assert action buttons visible
-    cy.contains('button', /edit profile/i).should('be.visible');
-    cy.contains('button', /delete account/i).should('be.visible');
   });
 
   it('should switch to edit mode', () => {

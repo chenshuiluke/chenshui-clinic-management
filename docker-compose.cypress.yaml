@@ -99,7 +99,7 @@ services:
       - ./frontend/.env
     environment:
       - CYPRESS_BASE_URL=http://frontend:5173
-      - CYPRESS_API_URL=http://backend-api:3000
+      - CYPRESS_API_URL=http://host.docker.internal:3000
       - CYPRESS_video=true
       - CYPRESS_screenshotOnRunFailure=true
       - CYPRESS_defaultCommandTimeout=10000

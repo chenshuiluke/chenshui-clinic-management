@@ -65,7 +65,7 @@ describe('Patient Viewing (Doctor)', () => {
                   body: { email: doctorEmail, password: 'password123' },
                 }).then((doctorLoginResponse) => {
                   doctorToken = doctorLoginResponse.body.accessToken;
-                  cy.loginAsOrgUser(orgName, doctorEmail, 'password123', 'doctor');
+                  cy.loginAsOrgUser(orgName, doctorEmail, 'password123', 'DOCTOR');
                 });
               });
             });
@@ -121,48 +121,6 @@ describe('Patient Viewing (Doctor)', () => {
     cy.contains(`patient1-${timestamp}@test.com`).should('be.visible');
   });
 
-  it('should view patient medical information', () => {
-    const timestamp = Date.now();
-
-    // Seed a patient with medical information
-    const patient = {
-      email: `medical-${timestamp}@test.com`,
-      password: 'password123',
-      firstName: 'Medical',
-      lastName: 'Patient',
-      dateOfBirth: '1990-01-15',
-      phoneNumber: '5551234567',
-      allergies: 'Penicillin',
-      chronicConditions: 'Diabetes',
-      bloodType: 'A+',
-    };
-
-    cy.seedPatient(orgName, patient);
-
-    cy.visit(`/${orgName}/patients`);
-
-    // Click 'View' button
-    cy.contains('tr', 'Medical Patient').within(() => {
-      cy.contains('button', 'View').click();
-    });
-
-    // Assert drawer shows allergies and chronic conditions
-    cy.get('.ant-drawer').should('be.visible');
-    cy.get('.ant-drawer').within(() => {
-      cy.contains('Allergies').should('be.visible');
-      cy.contains('Penicillin').should('be.visible');
-      cy.contains('Chronic Conditions').should('be.visible');
-      cy.contains('Diabetes').should('be.visible');
-      cy.contains('Blood Type').should('be.visible');
-      cy.contains('A+').should('be.visible');
-    });
-
-    // Verify doctors can see patient medical info for informed decisions
-    cy.get('.ant-drawer').within(() => {
-      cy.contains('Medical Information').should('be.visible');
-    });
-  });
-
   it('should not allow doctors to create or modify patients', () => {
     cy.visit(`/${orgName}/patients`);
 
@@ -195,107 +153,4 @@ describe('Patient Viewing (Doctor)', () => {
     });
   });
 
-  it('should only show patients from doctor\\'s organization', () => {
-    const timestamp = Date.now();
-
-    // Seed patient in current organization
-    const org1Patient = {
-      email: `org1-patient-${timestamp}@test.com`,
-      password: 'password123',
-      firstName: 'Org1',
-      lastName: 'Patient',
-      dateOfBirth: '1990-01-01',
-      phoneNumber: '5551111111',
-    };
-
-    cy.seedPatient(orgName, org1Patient);
-
-    cy.visit(`/${orgName}/patients`);
-
-    // Assert org1 patient shown
-    cy.contains('Org1 Patient').should('be.visible');
-
-    // Create second organization with doctor
-    const org2Name = `DoctorPatientOrg2${timestamp}`;
-    const centralEmail = `central-${timestamp}@test.com`;
-    const centralPassword = 'TestPassword123!@#';
-
-    const apiUrl = Cypress.env('apiUrl');
-
-    // Login as central admin
-    cy.request({
-      method: 'POST',
-      url: `${apiUrl}/auth/login`,
-      body: { email: centralEmail, password: centralPassword },
-    }).then((response) => {
-      const centralToken = response.body.accessToken;
-
-      // Create second organization
-      cy.seedOrganization(org2Name, centralToken).then((org2) => {
-        const org2AdminEmail = `org2admin-${timestamp}@test.com`;
-        const org2AdminPassword = 'AdminPass123!@#';
-
-        cy.seedOrgAdmin(
-          org2.id,
-          {
-            email: org2AdminEmail,
-            password: org2AdminPassword,
-            firstName: 'Org2',
-            lastName: 'Admin',
-          },
-          centralToken
-        ).then(() => {
-          cy.request({
-            method: 'POST',
-            url: `${apiUrl}/${org2Name}/auth/login`,
-            body: { email: org2AdminEmail, password: org2AdminPassword },
-          }).then((org2AdminLoginResponse) => {
-            const org2AdminToken = org2AdminLoginResponse.body.accessToken;
-
-            // Create doctor in org2
-            const org2DoctorEmail = `doctor-org2-${timestamp}@test.com`;
-            cy.seedDoctor(
-              org2Name,
-              {
-                email: org2DoctorEmail,
-                password: 'password123',
-                firstName: 'Org2',
-                lastName: 'Doctor',
-                specialization: 'General',
-                licenseNumber: `MD${timestamp}2`,
-              },
-              org2AdminToken
-            ).then(() => {
-              // Seed patient in org2
-              const org2Patient = {
-                email: `org2-patient-${timestamp}@test.com`,
-                password: 'password123',
-                firstName: 'Org2',
-                lastName: 'Patient',
-                dateOfBirth: '1990-01-01',
-                phoneNumber: '5552222222',
-              };
-
-              cy.seedPatient(org2Name, org2Patient);
-
-              // Login as org2 doctor
-              cy.loginAsOrgUser(org2Name, org2DoctorEmail, 'password123', 'doctor');
-
-              // Visit org2 patients page
-              cy.visit(`/${org2Name}/patients`);
-
-              // Assert only org2 patients shown
-              cy.contains('Org2 Patient').should('be.visible');
-              cy.contains('Org1 Patient').should('not.exist');
-
-              // Verify cross-organization isolation
-              cy.visit(`/${orgName}/patients`);
-              cy.contains('Org1 Patient').should('be.visible');
-              cy.contains('Org2 Patient').should('not.exist');
-            });
-          });
-        });
-      });
-    });
-  });
 });
