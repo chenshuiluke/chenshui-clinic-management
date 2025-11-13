@@ -11,8 +11,7 @@ export const TOKEN_STORAGE_KEYS = {
   ORG_NAME: 'org_name',
 } as const;
 
-// Token refresh threshold (60 seconds before expiry)
-// Access tokens expire in 5 minutes, so we refresh 1 minute before
+// Access tokens expire in 3 hours, so we refresh 1 minute before
 export const TOKEN_REFRESH_THRESHOLD_MS = 60000;
 
 // Application routes

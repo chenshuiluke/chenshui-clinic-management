@@ -54,7 +54,7 @@ export const OrgRegister: React.FC = () => {
       setAuthFromRegistration(response.accessToken, response.refreshToken, response.user, orgName);
 
       message.success('Registration successful! Welcome!');
-      navigate(buildOrgRoute(orgName, ROUTES.ORG_DASHBOARD));
+      window.location.href = buildOrgRoute(orgName, ROUTES.ORG_DASHBOARD);
     } catch (error) {
       notification.error({
         message: 'Registration Failed',

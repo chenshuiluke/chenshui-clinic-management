@@ -47,9 +47,8 @@ export function validateSecrets(secrets: { accessTokenSecret: string | undefined
 }
 
 export const jwtConfig = {
-  // Reduced from 15m to 5m for better security
-  // Frontend should implement silent refresh at T-60s before expiry
-  accessTokenExpiry: '5m',
+  // Set to 3h for better user experience, frontend implements silent refresh before expiry
+  accessTokenExpiry: '3h',
   refreshTokenExpiry: '7d',
   algorithm: 'HS512' as const,
   issuer: process.env.JWT_ISSUER || 'chenshui-clinic-management',
