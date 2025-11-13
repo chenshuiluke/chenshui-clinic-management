@@ -3,9 +3,23 @@ import {
   getOrgDbName,
   getOrgDbUser,
   getOrgSecretName,
+  sanitizeOrgName,
 } from "../utils/organization";
 import format from "pg-format";
 import { secretsManagerService } from "./secrets-manager.service";
+import { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { eq, sql, asc } from "drizzle-orm";
+import * as centralSchema from "../db/schema/central/schema";
+import { organizationTable } from "../db/schema/central/schema";
+import { Organization, NewOrganization } from "../db/schema/central/types";
+import { organizationUserTable, adminProfileTable } from "../db/schema/distributed/schema";
+import { getOrgDb } from "../db/drizzle-organization-db";
+import jwtService from "./jwt.service";
+import { securityLogger } from "../utils/logger";
+import { clearOrgCache } from "../middleware/org";
+import { runMigrationsForSingleDistributedDb } from "../utils/migrations";
+
+type CentralDatabase = NodePgDatabase<typeof centralSchema>;
 
 /**
  * Organization Database Management Service
@@ -480,3 +494,249 @@ export const deleteOrganizationDb = async (orgName: string) => {
     console.error("Error deleting organization database:", error);
   }
 };
+
+/**
+ * Helper function to check if error has a code property
+ */
+function isDatabaseError(error: unknown): error is Error & { code: string } {
+  return error instanceof Error && 'code' in error && typeof (error as any).code === 'string';
+}
+
+/**
+ * OrganizationService
+ *
+ * Handles organization CRUD business logic including organization creation,
+ * retrieval, counting, admin user creation, and existence checks.
+ */
+class OrganizationService {
+  /**
+   * Create a new organization with database provisioning and migration
+   */
+  async createOrganization(
+    db: CentralDatabase,
+    orgName: string,
+    createdBy: number
+  ) {
+    // Check if organization already exists (exact match)
+    const existingOrg = await db
+      .select()
+      .from(organizationTable)
+      .where(eq(organizationTable.name, orgName))
+      .limit(1);
+
+    if (existingOrg.length > 0) {
+      throw new Error(`Organization with name '${orgName}' already exists`);
+    }
+
+    // Check for sanitized-name collision to prevent 500 errors during DB creation
+    const sanitizedName = sanitizeOrgName(orgName);
+    const allOrgs = await db.select().from(organizationTable);
+    const sanitizedCollision = allOrgs.find(
+      (org) => sanitizeOrgName(org.name) === sanitizedName
+    );
+
+    if (sanitizedCollision) {
+      throw new Error('Organization with this name already exists');
+    }
+
+    // Prepare organization data
+    const newOrgData: NewOrganization = {
+      name: orgName,
+    };
+
+    // Create physical database
+    let dbResult;
+    try {
+      dbResult = await createOrganizationDb(orgName);
+    } catch (error) {
+      throw new Error(`Failed to create organization database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Run migrations on the new database
+    try {
+      await runMigrationsForSingleDistributedDb({ name: orgName });
+    } catch (migrationError) {
+      // Rollback database creation on migration failure
+      try {
+        await deleteOrganizationDb(orgName);
+      } catch (rollbackError) {
+        console.error('Failed to rollback database creation:', rollbackError);
+      }
+      throw new Error(`Failed to initialize organization database schema: ${migrationError instanceof Error ? migrationError.message : 'Unknown error'}`);
+    }
+
+    // Persist organization record
+    let organization: Organization;
+    try {
+      const [inserted] = await db
+        .insert(organizationTable)
+        .values(newOrgData)
+        .returning();
+
+      if (!inserted) {
+        throw new Error('Failed to insert organization record');
+      }
+
+      organization = inserted;
+    } catch (persistError) {
+      // Rollback database creation on persist failure
+      try {
+        await deleteOrganizationDb(orgName);
+      } catch (rollbackError) {
+        console.error('Failed to rollback database creation:', rollbackError);
+      }
+
+      // Check for unique constraint violation
+      if (
+        isDatabaseError(persistError) && persistError.code === '23505' ||
+        (persistError instanceof Error && persistError.message.includes('unique'))
+      ) {
+        throw new Error('Organization with this name already exists');
+      }
+
+      throw persistError;
+    }
+
+    // Clear organization cache (use sanitized name to match cache key)
+    await clearOrgCache(sanitizeOrgName(organization.name));
+
+    // Log security event
+    securityLogger.organizationCreated(organization.name, createdBy);
+
+    // Return structured response
+    return {
+      id: organization.id,
+      name: organization.name,
+      createdAt: organization.createdAt,
+      updatedAt: organization.updatedAt,
+      database: {
+        created: true,
+        dbName: dbResult.dbName,
+        secretName: dbResult.secretName,
+        message: dbResult.message,
+      },
+    };
+  }
+
+  /**
+   * Get all organizations ordered by ID
+   */
+  async getAllOrganizations(db: CentralDatabase) {
+    const organizations = await db
+      .select()
+      .from(organizationTable)
+      .orderBy(asc(organizationTable.id));
+
+    return organizations;
+  }
+
+  /**
+   * Get count of all organizations
+   */
+  async getOrganizationsCount(db: CentralDatabase) {
+    const result = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(organizationTable);
+
+    const count = result[0]?.count || 0;
+
+    return { count };
+  }
+
+  /**
+   * Create an admin user for an organization
+   */
+  async createAdminUser(
+    db: CentralDatabase,
+    orgId: number,
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string
+  ) {
+    // Find organization by ID
+    const [organization] = await db
+      .select()
+      .from(organizationTable)
+      .where(eq(organizationTable.id, orgId))
+      .limit(1);
+
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    // Get organization database
+    const orgDb = await getOrgDb(organization.name);
+
+    // Check if user already exists
+    const existingUser = await orgDb
+      .select()
+      .from(organizationUserTable)
+      .where(eq(organizationUserTable.email, email))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error('User with this email already exists in the organization');
+    }
+
+    // Hash password
+    const hashedPassword = await jwtService.hashPassword(password);
+
+    // Create admin user with transaction
+    const result = await orgDb.transaction(async (tx) => {
+      // Insert admin profile
+      const [adminProfile] = await tx
+        .insert(adminProfileTable)
+        .values({})
+        .returning();
+
+      if (!adminProfile) {
+        throw new Error('Failed to create admin profile');
+      }
+
+      // Insert organization user
+      const [user] = await tx
+        .insert(organizationUserTable)
+        .values({
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          adminProfileId: adminProfile.id,
+        })
+        .returning();
+
+      if (!user) {
+        throw new Error('Failed to create organization user');
+      }
+
+      return { user, adminProfile };
+    });
+
+    // Return structured response
+    return {
+      id: result.user.id,
+      email: result.user.email,
+      firstName: result.user.firstName,
+      lastName: result.user.lastName,
+      role: 'admin' as const,
+    };
+  }
+
+  /**
+   * Check if organization exists by slug
+   */
+  async checkOrganizationExists(db: CentralDatabase, orgSlug: string) {
+    // Fetch all organizations
+    const allOrgs = await db.select().from(organizationTable);
+
+    // Find organization with matching sanitized name
+    const organization = allOrgs.find(
+      (org) => sanitizeOrgName(org.name) === sanitizeOrgName(orgSlug)
+    );
+
+    return !!organization;
+  }
+}
+
+export const organizationService = new OrganizationService();

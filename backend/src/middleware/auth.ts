@@ -372,6 +372,45 @@ export const requireAdminOrDoctor = async (
 };
 
 /**
+ * Require patient or admin role
+ */
+export const requirePatientOrAdmin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const user = await loadOrganizationUserWithProfiles(req, res);
+  if (!user) {
+    return; // Response already sent by helper
+  }
+
+  if (!user.patientProfile && !user.adminProfile) {
+    res.status(403).json({ error: 'Patient or Admin access required' });
+    return;
+  }
+
+  // Validate that the user's actual role matches
+  const actualRole = getUserRole(user);
+  if (actualRole !== 'PATIENT' && actualRole !== 'ADMIN') {
+    securityLogger.suspiciousActivity(
+      'ROLE_MISMATCH',
+      {
+        userId: user.id,
+        actualRole,
+        expectedRole: 'PATIENT or ADMIN',
+        orgName: req.organization
+      },
+      getClientIp(req)
+    );
+    res.status(403).json({ error: 'Role verification failed' });
+    return;
+  }
+
+  req.organizationUser = user;
+  next();
+};
+
+/**
  * Middleware to reject requests with Authorization headers on open endpoints
  * This prevents confusion and potential side-effects from using wrong token types
  */

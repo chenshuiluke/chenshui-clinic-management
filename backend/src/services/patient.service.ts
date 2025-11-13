@@ -1,5 +1,5 @@
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { eq, count, isNotNull, or, ilike, and } from 'drizzle-orm';
 import * as distributedSchema from '../db/schema/distributed/schema';
 import * as distributedRelations from '../db/schema/distributed/relations';
 import { organizationUserTable, patientProfileTable } from '../db/schema/distributed/schema';
@@ -124,6 +124,91 @@ class PatientService {
         lastName: organizationUser.lastName,
         role: 'patient',
       },
+    };
+  }
+
+  async getAllPatients(db: OrgDatabase, searchQuery: string | undefined, limit: number, offset: number) {
+    // Build where condition for count query
+    const buildCountWhere = () => {
+      const baseCondition = isNotNull(organizationUserTable.patientProfileId);
+
+      if (!searchQuery) {
+        return baseCondition;
+      }
+
+      // Case-insensitive search on firstName, lastName, or email
+      const searchPattern = `%${searchQuery}%`;
+      return and(
+        baseCondition,
+        or(
+          ilike(organizationUserTable.firstName, searchPattern),
+          ilike(organizationUserTable.lastName, searchPattern),
+          ilike(organizationUserTable.email, searchPattern)
+        )
+      );
+    };
+
+    // Get total count with the same filters using aggregate count
+    const countResult = await db.select({ value: count() })
+      .from(organizationUserTable)
+      .where(buildCountWhere());
+    const total = Number(countResult[0]?.value || 0);
+
+    // Get paginated patients with server-side LIMIT and OFFSET
+    const patients = await db.query.organizationUserTable.findMany({
+      where: (users, { isNotNull: isNotNullOp, or: orOp, ilike: ilikeOp, and: andOp }) => {
+        const baseCondition = isNotNullOp(users.patientProfileId);
+
+        if (!searchQuery) {
+          return baseCondition;
+        }
+
+        // Case-insensitive search on firstName, lastName, or email
+        const searchPattern = `%${searchQuery}%`;
+        return andOp(
+          baseCondition,
+          orOp(
+            ilikeOp(users.firstName, searchPattern),
+            ilikeOp(users.lastName, searchPattern),
+            ilikeOp(users.email, searchPattern)
+          )
+        );
+      },
+      with: {
+        patientProfile: true,
+      },
+      limit,
+      offset,
+    });
+
+    // Map to response shape - type assertion needed for joined relations
+    type PatientWithProfile = typeof patients[0] & {
+      patientProfile: NonNullable<typeof patients[0]['patientProfile']>;
+    };
+
+    const mappedPatients = patients
+      .filter((user): user is PatientWithProfile => user.patientProfile !== null && user.patientProfile !== undefined)
+      .map(user => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: 'patient' as const,
+        dateOfBirth: user.patientProfile.dateOfBirth,
+        phoneNumber: user.patientProfile.phoneNumber,
+        address: user.patientProfile.address,
+        emergencyContactName: user.patientProfile.emergencyContactName,
+        emergencyContactPhone: user.patientProfile.emergencyContactPhone,
+        bloodType: user.patientProfile.bloodType,
+        allergies: user.patientProfile.allergies,
+        chronicConditions: user.patientProfile.chronicConditions,
+      }));
+
+    return {
+      patients: mappedPatients,
+      total,
+      limit,
+      offset,
     };
   }
 

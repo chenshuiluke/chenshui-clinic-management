@@ -129,8 +129,8 @@ class AppointmentService {
         createdAt: appointment.createdAt,
       })),
       total,
-      limit,
-      offset,
+      limit: limit ?? 10,
+      offset: offset ?? 0,
     };
   }
 
@@ -181,8 +181,8 @@ class AppointmentService {
         createdAt: appointment.createdAt,
       })),
       total,
-      limit,
-      offset,
+      limit: limit ?? 10,
+      offset: offset ?? 0,
     };
   }
 
@@ -241,8 +241,8 @@ class AppointmentService {
         createdAt: appointment.createdAt,
       })),
       total,
-      limit,
-      offset,
+      limit: limit ?? 10,
+      offset: offset ?? 0,
     };
   }
 

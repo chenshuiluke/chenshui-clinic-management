@@ -16,9 +16,11 @@ RUN npm i
 # Build TypeScript
 RUN npm run build
 
-# Remove TypeScript source files but keep migrations
+# Remove TypeScript source files but keep migrations and templates
 RUN find src -type f -name "*.ts" ! -path "*/migrations/*" -delete && \
     find src -type d -empty -delete
+# Copy templates to dist directory
+RUN cp -r src/templates dist/templates
 
 # Expose port (adjust if your app uses a different port)
 EXPOSE 3000
