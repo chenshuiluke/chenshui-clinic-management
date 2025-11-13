@@ -56,7 +56,7 @@ export class CoreInfrastructureStack extends cdk.Stack {
     });
 
     // RDS Database
-    this.database = new rds.DatabaseInstance(this, "Database", {
+    this.database = new rds.DatabaseInstance(this, "DatabasePublic", {
       engine: rds.DatabaseInstanceEngine.POSTGRES,
       allocatedStorage: 20,
       maxAllocatedStorage: 25,
@@ -65,8 +65,10 @@ export class CoreInfrastructureStack extends cdk.Stack {
         ec2.InstanceSize.MICRO,
       ),
       vpc: this.vpc,
+      // TEMPORARY: Using public subnets for direct database access during development/assessment
+      // TODO: Move back to private subnets
       vpcSubnets: this.vpc.selectSubnets({
-        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: ec2.SubnetType.PUBLIC,
       }),
       credentials: rds.Credentials.fromGeneratedSecret("chenshui_user"),
       databaseName: "chenshui_clinic_management",
@@ -80,6 +82,14 @@ export class CoreInfrastructureStack extends cdk.Stack {
       performanceInsightRetention: rds.PerformanceInsightRetention.DEFAULT,
       publiclyAccessible: true, // True only because it needs to be accessible for assessment purposes. Will need to make further modifications due to private subnet later
     });
+
+
+    // TODO: Remove this rule and restrict access to specific IPs
+    this.database.connections.allowFrom(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(5432),
+      'TEMPORARY: Allow database access from any IP for development - MUST RESTRICT LATER'
+    );
 
     // Create SES email identity for sending emails
     // This verifies the domain for sending emails via AWS SES

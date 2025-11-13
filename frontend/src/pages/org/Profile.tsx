@@ -225,7 +225,19 @@ export const OrgProfile: React.FC = () => {
           name="phoneNumber"
           rules={[
             { required: true, message: 'Please input your phone number!' },
-            { min: 10, message: 'Phone number must be at least 10 characters!' }
+            {
+              validator: (_, value) => {
+                if (!value) return Promise.resolve();
+                const digits = value.replace(/\D/g, '');
+                if (digits.length < 10) {
+                  return Promise.reject(new Error('Phone number must contain at least 10 digits!'));
+                }
+                if (!/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/.test(value)) {
+                  return Promise.reject(new Error('Please enter a valid phone number format!'));
+                }
+                return Promise.resolve();
+              }
+            }
           ]}
         >
           <Input placeholder="+1234567890" />

@@ -13,10 +13,6 @@ type CentralDatabase = NodePgDatabase<typeof centralSchema>;
 type OrgDatabase = NodePgDatabase<typeof distributedSchema & typeof distributedRelations>;
 
 class AuthService {
-  // ============================================================================
-  // Central Authentication Methods
-  // ============================================================================
-
   async loginCentral(
     db: CentralDatabase,
     email: string,
@@ -37,7 +33,6 @@ class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Validate password
     const isValidPassword = await jwtService.comparePassword(
       password,
       user.password
@@ -48,7 +43,6 @@ class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Check if user is verified
     if (!user.isVerified) {
       securityLogger.loginFailed(email, 'not verified', ipAddress);
       throw new Error('User not verified');

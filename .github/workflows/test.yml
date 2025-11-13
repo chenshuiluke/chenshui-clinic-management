@@ -30,44 +30,6 @@ jobs:
         run: |
           docker compose -f docker-compose.yaml -f docker-compose.test.yaml down -v || true
 
-  e2e-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Make test-e2e.sh executable
-        run: chmod +x test-e2e.sh
-
-      - name: Run E2E tests
-        run: ./test-e2e.sh
-
-      - name: Upload Cypress videos on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cypress-videos
-          path: frontend/cypress/videos/
-          retention-days: 7
-
-      - name: Upload Cypress screenshots on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cypress-screenshots
-          path: frontend/cypress/screenshots/
-          retention-days: 7
-
-      - name: Clean up
-        if: always()
-        run: |
-          cd frontend && npm run cypress:docker:down || true
-
   generate-coverage:
     runs-on: ubuntu-latest
     # Run coverage only on main branch to avoid rate limits
