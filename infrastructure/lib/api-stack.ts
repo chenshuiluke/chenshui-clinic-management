@@ -100,7 +100,7 @@ export class ApiStack extends cdk.Stack {
               ),
               JWT_ACCESS_SECRET: ecs.Secret.fromSecretsManager(jwtAccessSecret, "secret"),
               JWT_REFRESH_SECRET: ecs.Secret.fromSecretsManager(jwtRefreshSecret, "secret"),
-              SENDGRID_API_KEY: ecs.Secret.fromSecretsManager(sendgridApiKey),
+              SENDGRID_API_KEY: ecs.Secret.fromSecretsManager(sendgridApiKey, "SENDGRID_API_KEY"),
             },
 
             logDriver: ecs.LogDrivers.awsLogs({
