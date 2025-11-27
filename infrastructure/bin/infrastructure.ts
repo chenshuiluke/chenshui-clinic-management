@@ -35,6 +35,7 @@ const apiStack = new ApiStack(app, "ApiStack", {
   hostedZone: coreStack.hostedZone,
   jwtAccessSecret: coreStack.jwtAccessSecret,
   jwtRefreshSecret: coreStack.jwtRefreshSecret,
+  sendgridApiKey: coreStack.sendgridApiKey,
   alertTopic: coreStack.alertTopic,
 });
 

@@ -1,9 +1,6 @@
-import {
-  SESClient,
-  SendEmailCommand,
-  SendEmailCommandInput,
-} from "@aws-sdk/client-ses";
 import { templateLoader } from "../utils/template-loader";
+import { env } from "../config/env";
+import sendgrid from "@sendgrid/mail";
 
 export interface EmailParams {
   to: string;
@@ -21,52 +18,51 @@ export enum EmailTemplate {
 }
 
 class EmailService {
-  private client: SESClient;
+  private client: typeof sendgrid;
   private isMockMode: boolean;
   private sentEmails: EmailParams[] = [];
 
   constructor() {
-    const env = process.env.NODE_ENV || "development";
-    this.isMockMode = env === "test" || env === "development";
+    this.isMockMode = env.isMockMode;
 
     if (this.isMockMode) {
-      // In test/development mode, create a mock client that doesn't make real AWS calls
-      console.log(`[EmailService] Running in ${env} mode - using mock client`);
+      // In test/development mode, create a mock client
+      console.log(`[EmailService] Running in ${env.nodeEnv} mode - using mock client`);
       this.client = this.createMockClient();
     } else {
-      // In production, use the real AWS client
-      this.client = new SESClient({
-        region: process.env.AWS_REGION || "us-east-1",
-      });
+      // In production, use the real SendGrid client
+      sendgrid.setApiKey(env.sendgridApiKey);
+      this.client = sendgrid;
     }
   }
 
-  private createMockClient(): SESClient {
-    // Create a mock client that simulates AWS SES
-    const mockClient = new SESClient({
-      region: "us-east-1",
-    });
-
-    // Override the send method to simulate responses
-    const originalSend = mockClient.send.bind(mockClient);
-    mockClient.send = async (command: any) => {
-      if (command instanceof SendEmailCommand) {
+  private createMockClient(): typeof sendgrid {
+    // Create a mock client that simulates SendGrid
+    const mockClient = {
+      setApiKey: (apiKey: string) => {
+        console.log(`[EmailService Mock] setApiKey called`);
+      },
+      send: async (msg: sendgrid.MailDataRequired) => {
         console.log(
-          `[EmailService Mock] SendEmail called to: ${command.input.Destination?.ToAddresses?.[0]}, subject: ${command.input.Message?.Subject?.Data}`,
+          `[EmailService Mock] SendEmail called to: ${msg.to}, subject: ${msg.subject}`,
         );
         // Store the email for test assertions
         const emailParams: EmailParams = {
-          to: command.input.Destination?.ToAddresses?.[0] || "",
-          subject: command.input.Message?.Subject?.Data || "",
-          htmlBody: command.input.Message?.Body?.Html?.Data || "",
+          to: Array.isArray(msg.to) ? msg.to[0]!.toString() : msg.to!.toString(),
+          subject: msg.subject || "",
+          htmlBody: typeof msg.html === 'string' ? msg.html : "",
         };
         this.sentEmails.push(emailParams);
-        return {
-          MessageId: `mock-message-id-${Date.now()}`,
-        };
-      }
-      return originalSend(command);
-    };
+        return [
+          {
+            statusCode: 202,
+            body: {},
+            headers: {},
+          },
+          {},
+        ];
+      },
+    } as typeof sendgrid;
 
     return mockClient;
   }
@@ -77,27 +73,17 @@ class EmailService {
     const fromName =
       process.env.AWS_SES_FROM_NAME || "Clinic Management System";
 
-    const sendEmailParams: SendEmailCommandInput = {
-      Source: `${fromName} <${fromEmail}>`,
-      Destination: {
-        ToAddresses: [params.to],
+    const msg: sendgrid.MailDataRequired = {
+      to: params.to,
+      from: {
+        email: fromEmail,
+        name: fromName,
       },
-      Message: {
-        Subject: {
-          Data: params.subject,
-          Charset: "UTF-8",
-        },
-        Body: {
-          Html: {
-            Data: params.htmlBody,
-            Charset: "UTF-8",
-          },
-        },
-      },
+      subject: params.subject,
+      html: params.htmlBody,
     };
 
-    const command = new SendEmailCommand(sendEmailParams);
-    await this.client.send(command);
+    await this.client.send(msg);
   }
 
   getSentEmails(): EmailParams[] {

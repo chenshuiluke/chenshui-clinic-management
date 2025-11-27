@@ -20,6 +20,7 @@ export class CoreInfrastructureStack extends cdk.Stack {
   public readonly hostedZone: route53.IHostedZone;
   public readonly jwtAccessSecret: secretsmanager.Secret;
   public readonly jwtRefreshSecret: secretsmanager.Secret;
+  public readonly sendgridApiKey: secretsmanager.ISecret;
   public readonly alertTopic: sns.Topic;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -107,6 +108,12 @@ export class CoreInfrastructureStack extends cdk.Stack {
         excludePunctuation: true,
       },
     });
+
+    this.sendgridApiKey = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SENDGRID_API_KEY",
+      "SENDGRID_API_KEY"
+    );
 
     this.jwtRefreshSecret = new secretsmanager.Secret(this, "JWTRefreshSecret", {
       description: "JWT Refresh Token Secret for API authentication",

@@ -42,4 +42,7 @@ export const env = {
   get isMockMode() {
     return this.isDevelopment || this.isTest;
   },
+  get sendgridApiKey() {
+    return process.env.SENDGRID_API_KEY || '';
+  },
 } as const;

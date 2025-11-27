@@ -15,6 +15,13 @@
       "when": 1762920643510,
       "tag": "0001_add_timestamps_defaults_and_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1764273159930,
+      "tag": "0002_grey_nehzno",
+      "breakpoints": true
     }
   ]
 }

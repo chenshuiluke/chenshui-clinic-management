@@ -28,7 +28,7 @@ type CentralDatabase = NodePgDatabase<typeof centralSchema>;
  * for multi-tenant organizations. It uses raw pg.Client for admin operations
  * that cannot be performed through an ORM (CREATE DATABASE, CREATE USER, etc.).
  *
- * Note: This service is ORM-agnostic and uses raw PostgreSQL client for database operations.
+ *
  */
 
 // Generate a random password

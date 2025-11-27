@@ -25,6 +25,7 @@ interface ApiStackProps extends cdk.StackProps {
   hostedZone: route53.IHostedZone;
   jwtAccessSecret: secretsmanager.ISecret;
   jwtRefreshSecret: secretsmanager.ISecret;
+  sendgridApiKey: secretsmanager.ISecret;
   alertTopic: sns.ITopic;
 }
 
@@ -41,6 +42,7 @@ export class ApiStack extends cdk.Stack {
       hostedZone,
       jwtAccessSecret,
       jwtRefreshSecret,
+      sendgridApiKey,
       alertTopic,
     } = props;
 
@@ -98,6 +100,7 @@ export class ApiStack extends cdk.Stack {
               ),
               JWT_ACCESS_SECRET: ecs.Secret.fromSecretsManager(jwtAccessSecret, "secret"),
               JWT_REFRESH_SECRET: ecs.Secret.fromSecretsManager(jwtRefreshSecret, "secret"),
+              SENDGRID_API_KEY: ecs.Secret.fromSecretsManager(sendgridApiKey),
             },
 
             logDriver: ecs.LogDrivers.awsLogs({

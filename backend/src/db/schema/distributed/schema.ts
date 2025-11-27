@@ -59,6 +59,8 @@ export const patientProfileTable = pgTable("patient_profile", {
 	allergies: varchar({ length: 255 }),
 	chronicConditions: varchar("chronic_conditions", { length: 255 }),
 	ipAddress: varchar("ip_address", { length: 255 }).default('').notNull(),
+	insuranceProvider: varchar("insurance_provider", { length: 255 }),
+	insurancePolicyNumber: varchar("insurance_policy_number", { length: 255 }),
 });
 
 /**
